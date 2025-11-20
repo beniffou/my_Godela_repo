@@ -1,0 +1,12 @@
+{
+    "velocity_inlet": {
+        "type": "velocity",
+        "surfaces": ["Surface_10"],
+        "value": [0, 0, 1]
+    },
+    "pressure_outlet": {
+        "type": "pressure",
+        "surfaces": ["Surface_4"],
+        "value": 0
+        }
+}

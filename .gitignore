@@ -1,0 +1,10 @@
+/cases/*
+/meshes/*
+/objects/*
+/parameters/*
+/results/*
+/STL_images/*
+/visualization_results_matplotlib/*
+*.h5
+*.png
+__pycache__
