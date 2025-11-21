@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # openfoam_solver.py
-# Turbulent k-Epsilon run, stable numerics, BC checks, robust solvers, UPDF export
+# Turbulent k-Omega SST run, stable numerics, BC checks, robust solvers, UPDF export
 
 import os, re, glob, json, pathlib, shutil
 import numpy as np
@@ -10,14 +10,16 @@ import meshio
 SURFACE_INLET_INDEX  = 10
 SURFACE_OUTLET_INDEX = 4
 CASES_GLOB = "/home/ubuntu/fan_CFD_dataset/cases/fan_*"
-BC_JSON    = "/home/ubuntu/fan_CFD_dataset/boundary_conditions/fan_boundary_conditions.json"
+BC_JSON      = "/home/ubuntu/fan_CFD_dataset/boundary_conditions/fan_boundary_conditions.json"
 
-# --- RANS Initial Condition Parameters ---
-# Estimated characteristic length for initialization (adjust as needed for your geometry)
-CHARACTERISTIC_LENGTH = 0.05 # Meters (e.g., hydraulic diameter)
+# --- RANS Initial Condition Parameters for k-omega SST ---
 # Estimated Turbulence Intensity (5% for typical duct flow)
 TURBULENCE_INTENSITY = 0.05 
-# ---------------------------------------
+
+# NEW: Fixed high value for omega initialization to aid stability
+# Set to None to use the physics-based Lc calculation (recommended for accurate RANS setup)
+HIGH_OMEGA_INIT_OVERRIDE = None # Set to 1000.0 or another value if stability is low
+# --------------------------------------------------------
 
 from PyFoam.Execution.BasicRunner import BasicRunner
 from PyFoam.RunDictionary.ParsedParameterFile import ParsedParameterFile
@@ -41,7 +43,7 @@ def run_potential(case_dir):
 def run_case(case_dir):
     print(f"[RUN] {case_dir}")
     run_with_pyfoam(["simpleFoam", "-noFunctionObjects", "-case", case_dir],
-                    logname="log.simpleFoam")
+                     logname="log.simpleFoam")
 
 def _latest_time_dir(case_dir):
     times = []
@@ -57,10 +59,10 @@ def convert_to_vtk_latest(case_dir):
     # Try latestTime first, then fallback to all times if needed
     try:
         run_with_pyfoam(["foamToVTK", "-noFunctionObjects", "-case",  case_dir, "-latestTime"],
-                         logname="log.foamToVTK")
+                             logname="log.foamToVTK")
     except RuntimeError:
         run_with_pyfoam(["foamToVTK", "-noFunctionObjects", "-case",  case_dir],
-                         logname="log.foamToVTK_all")
+                             logname="log.foamToVTK_all")
 
     vtk_root = os.path.join(case_dir, "VTK")
     if not os.path.isdir(vtk_root):
@@ -96,6 +98,9 @@ def _read_text(p):
 def _write_text(p, s):
     pathlib.Path(os.path.dirname(p)).mkdir(parents=True, exist_ok=True)
     with open(p, "w") as f:
+        # FIX: Ensure the file content ends with a newline character to prevent EOF errors
+        if not s.endswith('\n'):
+            s += '\n'
         f.write(s)
 
 # ---------- mesh boundary parsing ----------
@@ -122,9 +127,9 @@ def normalize_boundary_file(case_dir):
         body = m.group(2)
         if desired_type:
             if re.search(r"\btype\s+\w+\s*;", body):
-                body = re.sub(r"\btype\s+\w+\s*;", f"type            {desired_type};", body)
+                body = re.sub(r"\btype\s+\w+\s*;", f"type          {desired_type};", body)
             else:
-                body = f"type            {desired_type};\n{body}"
+                body = f"type          {desired_type};\n{body}"
         if desired_physical:
             if re.search(r"\bphysicalType\s+\w+\s*;", body):
                 body = re.sub(r"\bphysicalType\s+\w+\s*;", f"physicalType    {desired_physical};", body)
@@ -187,10 +192,9 @@ def collect_patch_point_ids(case_dir, patch):
             pts.add(pid)
     return np.array(sorted(pts), dtype=np.int64)
 
-# ---------- fvSolution/fvSchemes (stable defaults) ----------
+# ---------- fvSolution/fvSchemes (MODIFIED for k-omega SST) ----------
 def write_fvSolution(case_dir):
     path = os.path.join(case_dir, "system", "fvSolution")
-    # UPDATED: Added k and epsilon solvers
     txt = """FoamFile
 {
     version      2.0;
@@ -205,7 +209,7 @@ solvers
     {
         solver          GAMG;
         tolerance       1e-07;
-        relTol          0.1;
+        relTol          0.01;
         smoother        GaussSeidel;
         nFinestSweeps   2;
         maxIter         100;
@@ -230,7 +234,6 @@ solvers
         maxIter         100;
     }
 
-    // ADDED: Solvers for k-epsilon model fields
     k
     {
         solver          smoothSolver;
@@ -239,7 +242,7 @@ solvers
         tolerance       1e-07;
         relTol          0.1;
     }
-    epsilon
+    omega
     {
         solver          smoothSolver;
         smoother        symGaussSeidel;
@@ -258,8 +261,15 @@ SIMPLE
     {
         U 1e-5;
         p 1e-4;
-        k 1e-5;      // ADDED
-        epsilon 1e-5; // ADDED
+        k 1e-5;
+        omega 1e-5;
+    }
+    
+    // Add explicit bounding for k and omega
+    limiters
+    {
+        k           1e-15;
+        omega       1e-15;
     }
 }
 
@@ -267,24 +277,23 @@ relaxationFactors
 {
     fields
     {
-        p 0.3;
-        k 0.7;      // ADDED
-        epsilon 0.7; // ADDED
+        p 0.3; 
+        
+        // FIX FPE: Reduced relaxation for stability in k and omega (Aggressive damping)
+        k 0.1;
+        omega 0.1;
     }
     equations
     {
-        U 0.5;
+        U 0.7;
     }
 }
 """
-    pathlib.Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        f.write(txt)
-    print(f"[FIX] wrote clean fvSolution (k/epsilon solvers, increased relaxation) -> {path}")
+    _write_text(path, txt)
+    print(f"[FIX] wrote clean fvSolution (MotorBike Stability Fixes Applied) -> {path}")
 
 def ensure_fvSchemes(case_dir):
     path = os.path.join(case_dir, "system", "fvSchemes")
-    # UPDATED: Added schemes for k and epsilon, div(phi,U) reverted to limitedLinearV 1
     txt = (
         "FoamFile\n"
         "{\n"
@@ -303,11 +312,15 @@ def ensure_fvSchemes(case_dir):
         "}\n\n"
         "divSchemes\n"
         "{\n"
-        "     div(phi,U)                  Gauss limitedLinearV 1;\n" # Reverted to high-order
-        "     div(phi,k)                  Gauss upwind;\n"          # ADDED (for stability)
-        "     div(phi,epsilon)            Gauss upwind;\n"          # ADDED (for stability)
-        "     div((nuEff*dev2(T(grad(U)))))       Gauss linear;\n"
-        "     div(dev(tauEff))            Gauss linear;\n"         # ADDED (needed for RANS)
+        "     // Momentum (U): Robust Bounded Second-Order (Good balance of stability and accuracy)\n"
+        "     div(phi,U)                  Gauss limitedLinearV 1;\n"
+        "     \n"
+        "     // FIX FPE: K and Omega reverted to FIRST-ORDER (Upwind) for maximum stability\n"
+        "     div(phi,k)                  Gauss upwind;\n"
+        "     div(phi,omega)              Gauss upwind;\n"
+        "     \n"
+        "     div((nuEff*dev2(T(grad(U)))))      Gauss linear;\n"
+        "     div(dev(tauEff))            Gauss linear;\n"
         "}\n\n"
         "laplacianSchemes\n"
         "{\n"
@@ -320,10 +333,14 @@ def ensure_fvSchemes(case_dir):
         "snGradSchemes\n"
         "{\n"
         "     default         corrected;\n"
+        "}\n\n"
+        "wallDist\n"
+        "{\n"
+        "     method          meshWave;\n"
         "}\n"
     )
     _write_text(path, txt)
-    print(f"[FIX] fvSchemes (RANS schemes added, div(phi,U) reverted) -> {path}")
+    print(f"[FIX] fvSchemes (Switched K/Omega to FIRST-ORDER UPWIND for max stability) -> {path}")
 
 
 def ensure_transport(case_dir, nu=1e-5):
@@ -336,37 +353,35 @@ def ensure_transport(case_dir, nu=1e-5):
         )
     print(f"[FIX] transportProperties -> {path}")
 
-# ---------- turbulence: enforce RANS kEpsilon ----------
+# ---------- turbulence: enforce RANS kOmegaSST ----------
 def write_turbulence_properties_turbulent(case_dir):
     path = os.path.join(case_dir, "constant", "turbulenceProperties")
-    # EDITED: Switched to RAS, kEpsilon model
     txt = (
         "FoamFile\n{\n      version 2.0;\n      format ascii;\n"
         "      class dictionary;\n      location \"constant\";\n      object turbulenceProperties;\n}\n\n"
         "simulationType RAS;\n\n"
-        "RASModel        kEpsilon;\n\n"
-        "turbulence      on;\n"
-        "printCoeffs     on;\n"
+        "RAS\n{\n" 
+        "    RASModel        kOmegaSST;\n\n"
+        "    turbulence      on;\n"
+        "    printCoeffs     on;\n"
+        "}\n"
     )
     _write_text(path, txt)
-    print("[FIX] turbulenceProperties -> RAS kEpsilon")
+    print("[FIX] turbulenceProperties -> RAS { kOmegaSST } (Corrected Structure)")
 
 def write_rasproperties(case_dir):
     path = os.path.join(case_dir, "constant", "RASProperties")
-    # EDITED: Add RASProperties for the k-epsilon model
     txt = (
         "FoamFile\n{\n      version 2.0;\n      format ascii;\n"
         "      class dictionary;\n      location \"constant\";\n      object RASProperties;\n}\n\n"
-        "RASModel        kEpsilon;\n\n"
-        "turbulence      on;\n"
-        "printCoeffs     on;\n"
+        "kOmegaSSTCoeffs\n{\n}\n" 
     )
     _write_text(path, txt)
-    print("[FIX] wrote constant/RASProperties")
+    print("[FIX] wrote constant/RASProperties (kOmegaSSTCoeffs)")
 
 def purge_turbulence_zero_dir(case_dir):
     zero = os.path.join(case_dir, "0")
-    # Remove all standard turbulence fields, we will create k and epsilon
+    # Purge all k-epsilon and k-omega fields
     for fname in ("k", "epsilon", "omega", "nuTilda", "nut"):
         fpath = os.path.join(zero, fname)
         if os.path.exists(fpath): os.remove(fpath)
@@ -381,13 +396,16 @@ def write_k_init(case_dir, inlet_mag):
     k_init = 1.5 * (inlet_mag * TURBULENCE_INTENSITY)**2
     path = os.path.join(case_dir, "0", "k")
     txt = (
-        "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class volScalarField;\n    object k;\n}\n\n"
+        "FoamFile\n{\n     version 2.0;\n     format ascii;\n     class volScalarField;\n     object k;\n}\n\n"
         "dimensions      [0 2 -2 0 0 0 0];\n\n"
         f"internalField   uniform {k_init};\n\n"
         "boundaryField\n{\n"
         "    defaultPatch\n    {\n        type            zeroGradient;\n    }\n"
-        "    walls\n    {\n        type            kqRWallFunction;\n    }\n"
-        "    velocity_inlet\n    {\n        type            fixedValue;\n        value           uniform " + str(k_init) + ";\n    }\n"
+        "    walls\n    {\n        type            kqRWallFunction;\n"
+        "        value            uniform 0;\n" 
+        "    }\n"
+        "    velocity_inlet\n    {\n        type            fixedValue;\n        value            uniform " + str(k_init) + ";\n"
+        "    }\n"
         "    pressure_outlet\n    {\n        type            zeroGradient;\n    }\n"
         "}"
     )
@@ -395,42 +413,92 @@ def write_k_init(case_dir, inlet_mag):
     print(f"[FIX] Wrote k init (k={k_init}) to {path}")
     return k_init
 
-def write_epsilon_init(case_dir, inlet_mag, k_init, nu=1e-5):
-    # Calculated based on assumed length scale
-    epsilon_init = (0.09**0.75 * k_init**1.5) / CHARACTERISTIC_LENGTH 
+# NEW: Initialisation for omega (Specific Dissipation Rate)
+def write_omega_init(case_dir, inlet_mag, k_init, characteristic_length, nu=1e-5):
     
-    path = os.path.join(case_dir, "0", "epsilon")
+    # Estimate omega based on Lc and k_init (epsilon/C_mu*k)
+    if characteristic_length < 1e-6:
+        print(f"[WARN] Characteristic length {characteristic_length} too small. Using default Lc = 0.005.")
+        characteristic_length = 0.005 # Fallback Lc for calculation
+        
+    # Calculate epsilon_Lc based on k-epsilon model (standard way to calculate Lc turbulence)
+    epsilon_Lc = (0.09**0.75 * k_init**1.5) / characteristic_length 
+    
+    # Convert epsilon to omega: omega = epsilon / (C_mu * k)
+    omega_Lc_init = epsilon_Lc / (0.09 * k_init)
+    
+    # Apply override if set
+    if HIGH_OMEGA_INIT_OVERRIDE is not None:
+        omega_init = HIGH_OMEGA_INIT_OVERRIDE
+        calc_msg = f"(OVERRIDE: fixed high value {HIGH_OMEGA_INIT_OVERRIDE})"
+    else:
+        omega_init = omega_Lc_init
+        calc_msg = f"(Lc-based: {omega_Lc_init:.4e})"
+
+    path = os.path.join(case_dir, "0", "omega")
     txt = (
-        "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class volScalarField;\n    object epsilon;\n}\n\n"
-        "dimensions      [0 2 -3 0 0 0 0];\n\n"
-        f"internalField   uniform {epsilon_init};\n\n"
+        "FoamFile\n{\n     version 2.0;\n     format ascii;\n     class volScalarField;\n     object omega;\n}\n\n"
+        "dimensions      [0 0 -1 0 0 0 0];\n\n"
+        f"internalField   uniform {omega_init};\n\n"
         "boundaryField\n{\n"
         "    defaultPatch\n    {\n        type            zeroGradient;\n    }\n"
-        "    walls\n    {\n        type            epsilonWallFunction;\n    }\n"
-        "    velocity_inlet\n    {\n        type            fixedValue;\n        value           uniform " + str(epsilon_init) + ";\n    }\n"
+        "    walls\n    {\n        type            omegaWallFunction;\n"
+        "        value            uniform 1e-10;\n" 
+        "    }\n"
+        "    velocity_inlet\n    {\n        type            fixedValue;\n        value            uniform " + str(omega_init) + ";\n    }\n"
         "    pressure_outlet\n    {\n        type            zeroGradient;\n    }\n"
         "}"
     )
     _write_text(path, txt)
-    print(f"[FIX] Wrote epsilon init (epsilon={epsilon_init}) to {path}")
+    print(f"[FIX] Wrote omega init (omega={omega_init:.4e} {calc_msg}) to {path}")
 
 def write_nut_init(case_dir):
-    # nut is needed but is usually calculated by the k-epsilon model, so we initialize it low.
+    # nut calculation uses nutkWallFunction for k-omega SST as well.
     path = os.path.join(case_dir, "0", "nut")
     txt = (
-        "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class volScalarField;\n    object nut;\n}\n\n"
+        "FoamFile\n{\n     version 2.0;\n     format ascii;\n     class volScalarField;\n     object nut;\n}\n\n"
         "dimensions      [0 2 -1 0 0 0 0];\n\n"
         "internalField   uniform 1e-10;\n\n"
         "boundaryField\n{\n"
-        "    defaultPatch\n    {\n        type            calculated;\n        value           uniform 0;\n    }\n"
-        "    walls\n    {\n        type            nutkWallFunction;\n    }\n"
-        "    velocity_inlet\n    {\n        type            calculated;\n        value           uniform 0;\n    }\n"
-        "    pressure_outlet\n    {\n        type            calculated;\n        value           uniform 0;\n    }\n"
+        "    defaultPatch\n    {\n        type            calculated;\n        value            uniform 0;\n    }\n"
+        "    walls\n    {\n        type            nutkWallFunction;\n"
+        "        value            uniform 1e-10;\n" 
+        "    }\n"
+        "    velocity_inlet\n    {\n        type            calculated;\n        value            uniform 0;\n"
+        "    }\n"
+        "    pressure_outlet\n    {\n        type            calculated;\n        value            uniform 0;\n"
+        "    }\n"
         "}"
     )
     _write_text(path, txt)
     print(f"[FIX] Wrote nut init (low) to {path}")
 
+
+# ---------- Metadata Reader ----------
+def read_characteristic_length(case_dir):
+    # Case directory is like: /home/ubuntu/fan_CFD_dataset/cases/fan_1_1
+    case_name = os.path.basename(case_dir) # e.g., fan_1_1
+    
+    # Heuristic to find the mesh directory based on the common parent structure
+    base_dir = os.path.dirname(os.path.dirname(case_dir))
+    meshes_dir = os.path.join(base_dir, "meshes")
+    
+    metadata_filename = f"{case_name}_fluid_metadata.json"
+    metadata_path = os.path.join(meshes_dir, metadata_filename)
+    
+    if not os.path.exists(metadata_path):
+        raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
+    
+    with open(metadata_path, 'r') as f:
+        metadata = json.load(f)
+        
+    Lc = metadata.get("characteristic_length")
+    
+    if Lc is None:
+        raise KeyError(f"'characteristic_length' missing from metadata file: {metadata_path}")
+        
+    print(f"[METADATA] Found Characteristic Length: {Lc:.4e} (from {metadata_path})")
+    return Lc
 
 # ---------- read BC JSON ----------
 def load_bc_json():
@@ -460,7 +528,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
             if p not in bf: bf[p] = {}
         return bf
 
-    # U (No change, uses zeroGradient for walls for RANS)
+    # U (No change, uses noSlip for walls)
     U = ParsedParameterFile(os.path.join(case_dir, "0", "U"))
     Ub = reset_boundary_field(U)
     for p in patch_names:
@@ -472,7 +540,6 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
                      "value": "uniform (0 0 0)",
                      "inletValue": "uniform (0 0 0)"}
         elif p == "walls":
-            # For RANS, U at walls is technically fixedValue uniform (0 0 0), but noSlip is the shortcut
             Ub[p] = {"type": "noSlip"} 
         else:
             Ub[p] = {"type": "zeroGradient"}
@@ -495,7 +562,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
     P.writeFile()
 
     # Well-posedness checks
-    boundary = read_boundary_table(case_dir) # Re-read boundary table just in case
+    boundary = read_boundary_table(case_dir)
     p_has_fixed_on_outlet = Pb[outlet].get("type","") == "fixedValue"
     u_has_fixed_on_inlet  = Ub[inlet].get("type","") == "fixedValue"
     if inlet == outlet:
@@ -583,18 +650,28 @@ def process_case(case_dir, results_dir=None):
     normalize_boundary_file(case_dir)
     ensure_transport(case_dir)
     
+    # 1. READ CHARACTERISTIC LENGTH 
+    try:
+        Lc = read_characteristic_length(case_dir)
+    except Exception as e:
+        print(f"[ERROR] Failed to read characteristic length: {e}")
+        # Use a safe fallback if reading fails completely
+        Lc = 0.005
+        print(f"[FALLBACK] Using default Lc = {Lc} for stability.")
+    
     json_inlet, json_outlet, inlet_vec, outlet_p = get_inlet_outlet_from_json()
-    inlet_mag = np.linalg.norm(inlet_vec) # Calculate inlet velocity magnitude
+    inlet_mag = np.linalg.norm(inlet_vec)
 
-    # --- TURBULENCE SETUP ---
-    ensure_ras(case_dir)
+    # --- TURBULENCE SETUP: k-omega SST ---
+    ensure_ras(case_dir) # Sets up kOmegaSST model, clears old fields
     k_init = write_k_init(case_dir, inlet_mag)
-    write_epsilon_init(case_dir, inlet_mag, k_init)
+    # 2. INITIALIZE OMEGA 
+    write_omega_init(case_dir, inlet_mag, k_init, Lc)
     write_nut_init(case_dir)
-    # ------------------------
+    # -------------------------------------
 
-    ensure_fvSchemes(case_dir)
-    write_fvSolution(case_dir)
+    ensure_fvSchemes(case_dir) # FIX: Uses conservative schemes for stability
+    write_fvSolution(case_dir) 
 
     detected_inlet, detected_outlet = detect_patch_names(case_dir)
     boundary = read_boundary_table(case_dir)

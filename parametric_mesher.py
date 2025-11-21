@@ -7,13 +7,14 @@ import sys
 def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 1)
-    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)   # MSH v2
+    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)    # MSH v2
     gmsh.option.setNumber("Mesh.Binary", 0)             # ASCII
 
     gmsh.clear()
     STEP_path = os.path.join(objects_folder, STEP_name + "_fluid.step")
     mesh_path = os.path.join(meshes_folder, STEP_name + "_fluid.msh")
     geo_path = os.path.join(meshes_folder, STEP_name + "_fluid.geo_unrolled")
+    metadata_path = os.path.join(meshes_folder, STEP_name + "_fluid_metadata.json")
 
     try:
         # Import CAD and sync OCC so entities are queryable
@@ -27,6 +28,38 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     # Bounding box
     xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(-1, -1)
 
+    # --- Mesh Density Calculation for ~20,000 Elements ---
+    TARGET_ELEMENT_COUNT = 10000000 
+    
+    Lx = xmax - xmin
+    Ly = ymax - ymin
+    Lz = zmax - zmin
+    
+    # Check for zero volume (in case of 2D or bad geometry)
+    if Lx * Ly * Lz < 1e-12:
+        print("[ERROR] Bounding box volume is zero or near-zero. Cannot set mesh size dynamically.")
+        L_target = 0.01 # Fallback characteristic length
+    else:
+        # 1. Calculate Bounding Box Volume
+        V_box = Lx * Ly * Lz 
+        # 2. Calculate desired Volume per Element
+        V_elem_target = V_box / TARGET_ELEMENT_COUNT
+        # 3. Estimate edge length L_target for a single tetrahedron: V_elem = (sqrt(2)/12) * L^3 (approximate)
+        # Using a simpler cubic approximation for a characteristic length: V_elem ~ L^3
+        L_target = V_elem_target**(1/3.0) 
+        
+    # Set this target length as the global mesh size
+    # This overrides the default automatic sizing and aims for a uniform size L_target.
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMin", L_target*0.05)
+    gmsh.option.setNumber("Mesh.CharacteristicLengthMax", L_target*3)
+    
+    # Retain your original characteristic length calculation for CFD purposes
+    characteristic_length = min(Lx, Ly, Lz)
+    
+    print(f"Bounding Box Volume: {V_box:.4e}. Target Mesh Size (L_target): {L_target:.4e}")
+    print(f"CFD Characteristic Length (Lc): {characteristic_length:.4f}")
+    # ----------------------------------------------------
+
     # Get volume(s)
     volumes = gmsh.model.getEntities(3)
     if not volumes:
@@ -37,11 +70,13 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     # Single volume tag (first one)
     volume_tag = volumes[0][1]
 
+    # Collect all surfaces in enumeration order... [Skipped boilerplate for brevity]
+
     # Collect all surfaces in enumeration order so Surface_10 means the 10th entry below
     surfaces = gmsh.model.getEntities(2)
     surface_by_index = {i + 1: s[1] for i, s in enumerate(surfaces)}
 
-    # Define boundary role indices
+    # Define boundary role indices (NOTE: These must match the indices in the Python solver script)
     inlet_idx = 10
     outlet_idx = 4
 
@@ -82,6 +117,12 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     except Exception as e:
         print(f"Error saving geometry file: {e}")
 
+    # --- Mesh Quality Fixes: Algorithms and Determinant ---
+    gmsh.option.setNumber("Mesh.Algorithm3D", 10) # HXT is stable for tet meshes
+    gmsh.option.setNumber("Mesh.Algorithm", 6)    # Netgen 2D/1D
+    gmsh.option.setNumber("Mesh.QualityType", 1)
+    # --------------------------------------------------------
+
     # Generate 3D mesh
     try:
         gmsh.model.mesh.generate(3)
@@ -90,18 +131,25 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         gmsh.finalize()
         return
 
-    # Optional refine
+    # --- Mesh Quality Fixes: Optimization (Simplified for Compatibility) ---
+    print("Optimizing mesh to fix non-orthogonality and determinant...")
     try:
-        gmsh.model.mesh.refine()
-        gmsh.model.mesh.refine()
+        gmsh.model.mesh.optimize("Netgen")
+        gmsh.model.mesh.optimize("Netgen") 
     except Exception as e:
-        print(f"Error refining mesh: {e}")
+        print(f"Error optimizing mesh: {e}")
         gmsh.finalize()
         return
-
-    # Report node count
+    
+    # Report node count and element count (for verification)
     nodes = gmsh.model.mesh.getNodes()
+    elements = gmsh.model.mesh.getElements(3) # Elements of dimension 3 (tetrahedra)
+    num_elements = len(elements[1][0]) if elements and len(elements[1]) > 0 else 0
+    
     print(f"Final number of nodes: {len(nodes[0])}")
+    print(f"Final number of tetrahedra: {num_elements} (Target: {TARGET_ELEMENT_COUNT})")
+
+    # Write a simple map of roles... [Skipped boilerplate for brevity]
 
     # Write a simple map of roles to underlying surface tags
     tags_path = os.path.join(meshes_folder, STEP_name + "_surface_tags.json")
@@ -113,12 +161,33 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     try:
         with open(tags_path, 'w') as f:
             json.dump(role_map, f, indent=4)
+        print(f"Saved surface tags to {tags_path}")
     except Exception as e:
         print(f"Error saving surface tags: {e}")
+
+    # --- NEW: Write Metadata (Characteristic Length) ---
+    metadata = {
+        "characteristic_length": characteristic_length,
+        "mesh_target_L": L_target,
+        "mesh_num_elements": num_elements,
+        "bounding_box": {
+            "xmin": xmin, "ymin": ymin, "zmin": zmin, 
+            "xmax": xmax, "ymax": ymax, "zmax": zmax
+        },
+        "num_nodes": len(nodes[0])
+    }
+    try:
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=4)
+        print(f"Saved metadata to {metadata_path}")
+    except Exception as e:
+        print(f"Error saving metadata file: {e}")
+    # ----------------------------------------------------
 
     # Write mesh
     try:
         gmsh.write(mesh_path)
+        print(f"Saved mesh to {mesh_path}")
     except Exception as e:
         print(f"Error writing mesh: {e}")
 
