@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # openfoam_solver.py
-# Laminar run, stable numerics, BC well-posedness checks, robust solvers, UPDF export
+# Turbulent k-Epsilon run, stable numerics, BC checks, robust solvers, UPDF export
 
 import os, re, glob, json, pathlib, shutil
 import numpy as np
@@ -11,6 +11,13 @@ SURFACE_INLET_INDEX  = 10
 SURFACE_OUTLET_INDEX = 4
 CASES_GLOB = "/home/ubuntu/fan_CFD_dataset/cases/fan_*"
 BC_JSON    = "/home/ubuntu/fan_CFD_dataset/boundary_conditions/fan_boundary_conditions.json"
+
+# --- RANS Initial Condition Parameters ---
+# Estimated characteristic length for initialization (adjust as needed for your geometry)
+CHARACTERISTIC_LENGTH = 0.05 # Meters (e.g., hydraulic diameter)
+# Estimated Turbulence Intensity (5% for typical duct flow)
+TURBULENCE_INTENSITY = 0.05 
+# ---------------------------------------
 
 from PyFoam.Execution.BasicRunner import BasicRunner
 from PyFoam.RunDictionary.ParsedParameterFile import ParsedParameterFile
@@ -50,10 +57,10 @@ def convert_to_vtk_latest(case_dir):
     # Try latestTime first, then fallback to all times if needed
     try:
         run_with_pyfoam(["foamToVTK", "-noFunctionObjects", "-case",  case_dir, "-latestTime"],
-                        logname="log.foamToVTK")
+                         logname="log.foamToVTK")
     except RuntimeError:
         run_with_pyfoam(["foamToVTK", "-noFunctionObjects", "-case",  case_dir],
-                        logname="log.foamToVTK_all")
+                         logname="log.foamToVTK_all")
 
     vtk_root = os.path.join(case_dir, "VTK")
     if not os.path.isdir(vtk_root):
@@ -183,12 +190,13 @@ def collect_patch_point_ids(case_dir, patch):
 # ---------- fvSolution/fvSchemes (stable defaults) ----------
 def write_fvSolution(case_dir):
     path = os.path.join(case_dir, "system", "fvSolution")
+    # UPDATED: Added k and epsilon solvers
     txt = """FoamFile
 {
-    version     2.0;
-    format      ascii;
-    class       dictionary;
-    object      fvSolution;
+    version      2.0;
+    format       ascii;
+    class        dictionary;
+    object       fvSolution;
 }
 
 solvers
@@ -211,6 +219,34 @@ solvers
         tolerance       1e-08;
         relTol          0.1;
     }
+
+    Phi
+    {
+        solver          GAMG;
+        tolerance       1e-07;
+        relTol          0.0;
+        smoother        GaussSeidel;
+        nFinestSweeps   2;
+        maxIter         100;
+    }
+
+    // ADDED: Solvers for k-epsilon model fields
+    k
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        nSweeps         2;
+        tolerance       1e-07;
+        relTol          0.1;
+    }
+    epsilon
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        nSweeps         2;
+        tolerance       1e-07;
+        relTol          0.1;
+    }
 }
 
 SIMPLE
@@ -222,6 +258,8 @@ SIMPLE
     {
         U 1e-5;
         p 1e-4;
+        k 1e-5;      // ADDED
+        epsilon 1e-5; // ADDED
     }
 }
 
@@ -229,57 +267,63 @@ relaxationFactors
 {
     fields
     {
-        p 0.2;
+        p 0.3;
+        k 0.7;      // ADDED
+        epsilon 0.7; // ADDED
     }
     equations
     {
-        U 0.3;
+        U 0.5;
     }
 }
 """
     pathlib.Path(os.path.dirname(path)).mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         f.write(txt)
-    print(f"[FIX] wrote clean fvSolution -> {path}")
+    print(f"[FIX] wrote clean fvSolution (k/epsilon solvers, increased relaxation) -> {path}")
 
 def ensure_fvSchemes(case_dir):
     path = os.path.join(case_dir, "system", "fvSchemes")
+    # UPDATED: Added schemes for k and epsilon, div(phi,U) reverted to limitedLinearV 1
     txt = (
         "FoamFile\n"
         "{\n"
-        "    version     2.0;\n"
-        "    format      ascii;\n"
-        "    class       dictionary;\n"
-        "    object      fvSchemes;\n"
+        "     version     2.0;\n"
+        "     format      ascii;\n"
+        "     class       dictionary;\n"
+        "     object      fvSchemes;\n"
         "}\n\n"
         "ddtSchemes\n"
         "{\n"
-        "    default         steadyState;\n"
+        "     default         steadyState;\n"
         "}\n\n"
         "gradSchemes\n"
         "{\n"
-        "    default         leastSquares;\n"
+        "     default         leastSquares;\n"
         "}\n\n"
         "divSchemes\n"
         "{\n"
-        "    div(phi,U)                         Gauss limitedLinearV 1;\n"
-        "    div((nuEff*dev2(T(grad(U)))))      Gauss linear;\n"
+        "     div(phi,U)                  Gauss limitedLinearV 1;\n" # Reverted to high-order
+        "     div(phi,k)                  Gauss upwind;\n"          # ADDED (for stability)
+        "     div(phi,epsilon)            Gauss upwind;\n"          # ADDED (for stability)
+        "     div((nuEff*dev2(T(grad(U)))))       Gauss linear;\n"
+        "     div(dev(tauEff))            Gauss linear;\n"         # ADDED (needed for RANS)
         "}\n\n"
         "laplacianSchemes\n"
         "{\n"
-        "    default         Gauss linear corrected;\n"
+        "     default         Gauss linear corrected;\n"
         "}\n\n"
         "interpolationSchemes\n"
         "{\n"
-        "    default         linear;\n"
+        "     default         linear;\n"
         "}\n\n"
         "snGradSchemes\n"
         "{\n"
-        "    default         corrected;\n"
+        "     default         corrected;\n"
         "}\n"
     )
     _write_text(path, txt)
-    print(f"[FIX] fvSchemes -> {path}")
+    print(f"[FIX] fvSchemes (RANS schemes added, div(phi,U) reverted) -> {path}")
 
 
 def ensure_transport(case_dir, nu=1e-5):
@@ -292,34 +336,101 @@ def ensure_transport(case_dir, nu=1e-5):
         )
     print(f"[FIX] transportProperties -> {path}")
 
-# ---------- turbulence: enforce laminar ----------
-def write_turbulence_properties_laminar(case_dir):
+# ---------- turbulence: enforce RANS kEpsilon ----------
+def write_turbulence_properties_turbulent(case_dir):
     path = os.path.join(case_dir, "constant", "turbulenceProperties")
-    header = (
-        "FoamFile\n{\n    version 2.0;\n    format ascii;\n"
-        "    class dictionary;\n    location \"constant\";\n    object turbulenceProperties;\n}\n\n"
-        "simulationType laminar;\n"
+    # EDITED: Switched to RAS, kEpsilon model
+    txt = (
+        "FoamFile\n{\n      version 2.0;\n      format ascii;\n"
+        "      class dictionary;\n      location \"constant\";\n      object turbulenceProperties;\n}\n\n"
+        "simulationType RAS;\n\n"
+        "RASModel        kEpsilon;\n\n"
+        "turbulence      on;\n"
+        "printCoeffs     on;\n"
     )
-    _write_text(path, header)
-    print("[FIX] turbulenceProperties -> laminar")
+    _write_text(path, txt)
+    print("[FIX] turbulenceProperties -> RAS kEpsilon")
+
+def write_rasproperties(case_dir):
+    path = os.path.join(case_dir, "constant", "RASProperties")
+    # EDITED: Add RASProperties for the k-epsilon model
+    txt = (
+        "FoamFile\n{\n      version 2.0;\n      format ascii;\n"
+        "      class dictionary;\n      location \"constant\";\n      object RASProperties;\n}\n\n"
+        "RASModel        kEpsilon;\n\n"
+        "turbulence      on;\n"
+        "printCoeffs     on;\n"
+    )
+    _write_text(path, txt)
+    print("[FIX] wrote constant/RASProperties")
 
 def purge_turbulence_zero_dir(case_dir):
     zero = os.path.join(case_dir, "0")
+    # Remove all standard turbulence fields, we will create k and epsilon
     for fname in ("k", "epsilon", "omega", "nuTilda", "nut"):
         fpath = os.path.join(zero, fname)
         if os.path.exists(fpath): os.remove(fpath)
-    print("[FIX] purged 0/ turbulence fields")
+    print("[FIX] purged old turbulence fields (k, epsilon, omega, nuTilda, nut)")
 
-def remove_rasproperties(case_dir):
-    ras = os.path.join(case_dir, "constant", "RASProperties")
-    if os.path.exists(ras):
-        os.remove(ras)
-        print("[FIX] removed constant/RASProperties")
-
-def ensure_laminar(case_dir):
-    write_turbulence_properties_laminar(case_dir)
-    remove_rasproperties(case_dir)
+def ensure_ras(case_dir):
+    write_turbulence_properties_turbulent(case_dir)
+    write_rasproperties(case_dir)
     purge_turbulence_zero_dir(case_dir)
+
+def write_k_init(case_dir, inlet_mag):
+    k_init = 1.5 * (inlet_mag * TURBULENCE_INTENSITY)**2
+    path = os.path.join(case_dir, "0", "k")
+    txt = (
+        "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class volScalarField;\n    object k;\n}\n\n"
+        "dimensions      [0 2 -2 0 0 0 0];\n\n"
+        f"internalField   uniform {k_init};\n\n"
+        "boundaryField\n{\n"
+        "    defaultPatch\n    {\n        type            zeroGradient;\n    }\n"
+        "    walls\n    {\n        type            kqRWallFunction;\n    }\n"
+        "    velocity_inlet\n    {\n        type            fixedValue;\n        value           uniform " + str(k_init) + ";\n    }\n"
+        "    pressure_outlet\n    {\n        type            zeroGradient;\n    }\n"
+        "}"
+    )
+    _write_text(path, txt)
+    print(f"[FIX] Wrote k init (k={k_init}) to {path}")
+    return k_init
+
+def write_epsilon_init(case_dir, inlet_mag, k_init, nu=1e-5):
+    # Calculated based on assumed length scale
+    epsilon_init = (0.09**0.75 * k_init**1.5) / CHARACTERISTIC_LENGTH 
+    
+    path = os.path.join(case_dir, "0", "epsilon")
+    txt = (
+        "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class volScalarField;\n    object epsilon;\n}\n\n"
+        "dimensions      [0 2 -3 0 0 0 0];\n\n"
+        f"internalField   uniform {epsilon_init};\n\n"
+        "boundaryField\n{\n"
+        "    defaultPatch\n    {\n        type            zeroGradient;\n    }\n"
+        "    walls\n    {\n        type            epsilonWallFunction;\n    }\n"
+        "    velocity_inlet\n    {\n        type            fixedValue;\n        value           uniform " + str(epsilon_init) + ";\n    }\n"
+        "    pressure_outlet\n    {\n        type            zeroGradient;\n    }\n"
+        "}"
+    )
+    _write_text(path, txt)
+    print(f"[FIX] Wrote epsilon init (epsilon={epsilon_init}) to {path}")
+
+def write_nut_init(case_dir):
+    # nut is needed but is usually calculated by the k-epsilon model, so we initialize it low.
+    path = os.path.join(case_dir, "0", "nut")
+    txt = (
+        "FoamFile\n{\n    version 2.0;\n    format ascii;\n    class volScalarField;\n    object nut;\n}\n\n"
+        "dimensions      [0 2 -1 0 0 0 0];\n\n"
+        "internalField   uniform 1e-10;\n\n"
+        "boundaryField\n{\n"
+        "    defaultPatch\n    {\n        type            calculated;\n        value           uniform 0;\n    }\n"
+        "    walls\n    {\n        type            nutkWallFunction;\n    }\n"
+        "    velocity_inlet\n    {\n        type            calculated;\n        value           uniform 0;\n    }\n"
+        "    pressure_outlet\n    {\n        type            calculated;\n        value           uniform 0;\n    }\n"
+        "}"
+    )
+    _write_text(path, txt)
+    print(f"[FIX] Wrote nut init (low) to {path}")
+
 
 # ---------- read BC JSON ----------
 def load_bc_json():
@@ -349,7 +460,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
             if p not in bf: bf[p] = {}
         return bf
 
-    # U
+    # U (No change, uses zeroGradient for walls for RANS)
     U = ParsedParameterFile(os.path.join(case_dir, "0", "U"))
     Ub = reset_boundary_field(U)
     for p in patch_names:
@@ -361,14 +472,15 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
                      "value": "uniform (0 0 0)",
                      "inletValue": "uniform (0 0 0)"}
         elif p == "walls":
-            Ub[p] = {"type": "noSlip"}
+            # For RANS, U at walls is technically fixedValue uniform (0 0 0), but noSlip is the shortcut
+            Ub[p] = {"type": "noSlip"} 
         else:
             Ub[p] = {"type": "zeroGradient"}
     if "internalField" not in U:
         U["internalField"] = "uniform (0 0 0)"
     U.writeFile()
 
-    # p
+    # p (No change)
     P = ParsedParameterFile(os.path.join(case_dir, "0", "p"))
     Pb = reset_boundary_field(P)
     for p in patch_names:
@@ -383,6 +495,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
     P.writeFile()
 
     # Well-posedness checks
+    boundary = read_boundary_table(case_dir) # Re-read boundary table just in case
     p_has_fixed_on_outlet = Pb[outlet].get("type","") == "fixedValue"
     u_has_fixed_on_inlet  = Ub[inlet].get("type","") == "fixedValue"
     if inlet == outlet:
@@ -394,7 +507,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
     if "walls" not in boundary or boundary["walls"]["nFaces"] == 0:
         raise RuntimeError("Missing or empty 'walls' patch. Add walls or rename accordingly.")
 
-# ---------- VTK read ----------
+# ---------- VTK read, H5 write (Unchanged) ----------
 def load_internal_vtu(vtu_path):
     m = meshio.read(vtu_path)
     pts = m.points.astype(np.float64)
@@ -411,7 +524,6 @@ def load_internal_vtu(vtu_path):
     p = np.asarray(p, dtype=np.float64).reshape(-1)
     return pts, U, p
 
-# ---------- H5 write ----------
 def write_updf(path, coords, inlet_ids, inlet_vec, outlet_ids, outlet_p, Usol, Psol):
     """
     Save BOTH:
@@ -470,17 +582,26 @@ def process_case(case_dir, results_dir=None):
 
     normalize_boundary_file(case_dir)
     ensure_transport(case_dir)
-    ensure_laminar(case_dir)
+    
+    json_inlet, json_outlet, inlet_vec, outlet_p = get_inlet_outlet_from_json()
+    inlet_mag = np.linalg.norm(inlet_vec) # Calculate inlet velocity magnitude
+
+    # --- TURBULENCE SETUP ---
+    ensure_ras(case_dir)
+    k_init = write_k_init(case_dir, inlet_mag)
+    write_epsilon_init(case_dir, inlet_mag, k_init)
+    write_nut_init(case_dir)
+    # ------------------------
+
     ensure_fvSchemes(case_dir)
     write_fvSolution(case_dir)
 
-    json_inlet, json_outlet, inlet_vec, outlet_p = get_inlet_outlet_from_json()
     detected_inlet, detected_outlet = detect_patch_names(case_dir)
     boundary = read_boundary_table(case_dir)
     inlet  = json_inlet  if json_inlet  in boundary else detected_inlet
     outlet = json_outlet if json_outlet in boundary else detected_outlet
 
-    print(f"[PATCHES] inlet='{inlet}' outlet='{outlet}'  U_in={tuple(inlet_vec)}  p_out={outlet_p}")
+    print(f"[PATCHES] inlet='{inlet}' outlet='{outlet}'   U_in={tuple(inlet_vec)}   p_out={outlet_p}")
 
     write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p)
 
