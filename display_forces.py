@@ -43,7 +43,7 @@ def plot_obj(obj_group, obj_name):
     X = X.reshape(-1)
     Y = Y.reshape(-1)
     Z = Z.reshape(-1)
-    U = np.sqrt(u.reshape(-1)**2 + v.reshape(-1)**2 + w.reshape(-1)**2)
+    U = np.sqrt(w.reshape(-1)**2)
 
     fig = plt.figure(figsize=(7, 6))
     ax = fig.add_subplot(111, projection='3d')
