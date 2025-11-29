@@ -63,6 +63,7 @@ if __name__ == "__main__":
     parameters_folder = "parameters"
     STL_images_folder = "STL_images"
 
+    # Create the "objects", "parameters" and "STL_images" folders 
     os.makedirs(objects_folder, exist_ok=True)
     os.makedirs(parameters_folder, exist_ok=True)
     os.makedirs(STL_images_folder, exist_ok=True)

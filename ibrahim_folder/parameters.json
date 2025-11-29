@@ -1,0 +1,9 @@
+{
+  
+  "fan": {
+    "length": [0.01, 0.02],
+    "width": [0.03, 0.07],
+    "convergence_ratio": [1, 1.4],
+    "wall_thickness": 0.005
+  }
+}
