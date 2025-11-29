@@ -201,6 +201,7 @@ if __name__ == "__main__":
     forces_folder = "forces"
     STL_images_folder = "STL_images"
 
+    # Create the "objects", "meshes", "parameters", "forces" and "STL_images" folders 
     os.makedirs(objects_folder, exist_ok=True)
     os.makedirs(meshes_folder, exist_ok=True)
     os.makedirs(parameters_folder, exist_ok=True)
