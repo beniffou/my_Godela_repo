@@ -15,6 +15,8 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     gmsh.option.setNumber("Mesh.Binary", 0)                 # ASCII
     gmsh.clear()
     
+    # STEP_name = fan_i     \forall i \in {0,...,num_samples_per_class-1}
+    
     STEP_path = os.path.join(objects_folder, STEP_name + "_fluid.step")                     # Recover STL parameters
     tags_path = os.path.join(meshes_folder, STEP_name + "_surface_tags.json")               # Write surface assignations
     geo_path = os.path.join(meshes_folder, STEP_name + "_fluid.geo_unrolled")               # Write the geometry

@@ -125,6 +125,8 @@ if __name__ == "__main__":
             # fixed_params = {'wall_thickness': 0.005}
             # param_ranges = {'length': [0.01, 0.02], 'width': [0.03, 0.07], 'convergence_ratio': [1, 1.4]}
 
+
+            ''' ==================== Generation of the samples ================ '''
             if variable_params:
                 sampler = qmc.LatinHypercube(d=len(variable_params))
                 # sampler is a generator of random numbers included in [0,1)^d (here d=3)
@@ -139,9 +141,16 @@ if __name__ == "__main__":
                 
                 sample = qmc.scale(sample, l_bounds, u_bounds)
                 # sample.shape = (num_samples_per_class, d) = (20, 3)
+                
             else:
                 sample = np.empty((num_samples_per_class, 0))
+            ''' =============================================================== '''
 
+
+
+
+
+            ''' ========== Generation of the files for the samples ============ '''
             for object_index in range(num_samples_per_class):
                 param_dict = fixed_params.copy()
                 for i, p in enumerate(variable_params):
@@ -155,9 +164,6 @@ if __name__ == "__main__":
                 wall_thickness = float(param_dict.get("wall_thickness", 0.005))
 
                 print(f"Generating {object_class} {object_index}: {[length, width, convergence_ratio, wall_thickness]}")
-
-
-
 
                 try:
                     geom_fluid = fan_fluid(length, width, convergence_ratio)
@@ -176,10 +182,7 @@ if __name__ == "__main__":
                     cq.exporters.export(geom_casing, os.path.join(objects_folder, base + "_casing.stl"))
                     '''------------------------------------------------------------------------------------'''
 
-
-
-
-                    # Save parameters for this pair
+                    # SAVE PARAMETERS
                     with open(os.path.join(parameters_folder, base + ".json"), "w") as f:
                         json.dump(
                             {
@@ -192,9 +195,6 @@ if __name__ == "__main__":
                             indent=4,
                         )
 
-
-
-
                     # One combined PNG for both parts
                     fluid_base = f"{base}_fluid"
                     casing_base = f"{base}_casing"
@@ -204,3 +204,5 @@ if __name__ == "__main__":
 
                 except Exception as e:
                     print(f"Error generating {object_class} {object_index}: {e}")
+                    
+                ''' =========================================================== '''
