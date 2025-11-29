@@ -3,7 +3,7 @@ import numpy as np
 import os
 import json
 from scipy.stats import qmc
-from utils.export_png import PNG_exporter
+# from utils.export_png import PNG_exporter
 
 def fan_fluid(length, width, convergence_ratio):
     section_length = length / 3
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
                     # One combined PNG for both parts
                     png_path = os.path.join(STL_images_folder, base + ".png")
-                    PNG_exporter([fluid_stl, casing_stl], img_path=png_path, opts=png_opts)
+                    # PNG_exporter([fluid_stl, casing_stl], img_path=png_path, opts=png_opts)
 
                 except Exception as e:
                     print(f"Error generating {object_class} {object_index}: {e}")
