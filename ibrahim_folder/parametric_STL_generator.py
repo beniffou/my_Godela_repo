@@ -3,7 +3,11 @@ import numpy as np
 import os
 import json
 from scipy.stats import qmc
-# from utils.export_png import PNG_exporter
+from utils.export_png import PNG_exporter
+
+'''
+Fill in the "objects" (.step and .stl for fluid and casing), "parameters" (.json) and "STL_images" (.png) folders
+'''
 
 def fan_fluid(length, width, convergence_ratio):
     section_length = length / 3
@@ -58,6 +62,17 @@ def fan_casing(length, width, convergence_ratio, wall_thickness):
     geometry = fan_enclosure.union(cross_brace(z1)).union(cross_brace(z2))
     return geometry
 
+
+
+
+
+
+
+
+''' ================================================================================== '''
+''' ====================================== main ====================================== '''
+''' ================================================================================== '''
+
 if __name__ == "__main__":
     objects_folder = "objects"
     parameters_folder = "parameters"
@@ -87,8 +102,10 @@ if __name__ == "__main__":
 
         for object_class in objects:
             # object_class =  fan
+            
             class_object = objects[object_class]
             # class_object =  {'length': [0.01, 0.02], 'width': [0.03, 0.07], 'convergence_ratio': [1, 1.4], 'wall_thickness': 0.005}
+            
             parameter_names = list(class_object.keys())
             # parameter_names =  ['length', 'width', 'convergence_ratio', 'wall_thickness']
 
@@ -111,17 +128,15 @@ if __name__ == "__main__":
             if variable_params:
                 sampler = qmc.LatinHypercube(d=len(variable_params))
                 # sampler is a generator of random numbers included in [0,1)^d (here d=3)
-                # sampler.random(n=5) = [[0.96711716 0.41953128 0.61583126]
-                #                       [0.41798826 0.36511683 0.52237616]
-                #                       [0.00912515 0.12800523 0.11366496]
-                #                       [0.61394559 0.65390347 0.36653797]
-                #                       [0.33226251 0.92948895 0.85933572]]
+                
                 sample = sampler.random(n=num_samples_per_class)
+                # sample.shape = (num_samples_per_class, d) = (20, 3)
                 
                 l_bounds = [param_ranges[p][0] for p in variable_params]
                 u_bounds = [param_ranges[p][1] for p in variable_params]
                 # l_bounds = [0.01, 0.03, 1]
                 # u_bounds = [0.02, 0.07, 1.4]
+                
                 sample = qmc.scale(sample, l_bounds, u_bounds)
                 # sample.shape = (num_samples_per_class, d) = (20, 3)
             else:
@@ -141,23 +156,28 @@ if __name__ == "__main__":
 
                 print(f"Generating {object_class} {object_index}: {[length, width, convergence_ratio, wall_thickness]}")
 
+
+
+
                 try:
                     geom_fluid = fan_fluid(length, width, convergence_ratio)
                     geom_casing = fan_casing(length, width, convergence_ratio, wall_thickness)
 
                     base = f"{object_class}_{object_index}"
-                    fluid_base = f"{base}_fluid"
-                    casing_base = f"{base}_casing"
-
-                    # Export STLs
-                    fluid_stl = os.path.join(objects_folder, fluid_base + ".stl")
-                    casing_stl = os.path.join(objects_folder, casing_base + ".stl")
-                    cq.exporters.export(geom_fluid, fluid_stl)
-                    cq.exporters.export(geom_casing, casing_stl)
-
+                    # base = fan_i     \forall i \in {0,...,num_samples_per_class-1}
+                    
+                    '''------------------------------------ Export ----------------------------------------'''
                     # Export STEPs
-                    cq.exporters.export(geom_fluid, os.path.join(objects_folder, fluid_base + ".step"))
-                    cq.exporters.export(geom_casing, os.path.join(objects_folder, casing_base + ".step"))
+                    cq.exporters.export(geom_fluid, os.path.join(objects_folder, base + "_fluid.step"))
+                    cq.exporters.export(geom_casing, os.path.join(objects_folder, base + "_casing.step"))
+                    
+                    # Export STLs
+                    cq.exporters.export(geom_fluid, os.path.join(objects_folder, base + "_fluid.stl"))
+                    cq.exporters.export(geom_casing, os.path.join(objects_folder, base + "_casing.stl"))
+                    '''------------------------------------------------------------------------------------'''
+
+
+
 
                     # Save parameters for this pair
                     with open(os.path.join(parameters_folder, base + ".json"), "w") as f:
@@ -172,9 +192,15 @@ if __name__ == "__main__":
                             indent=4,
                         )
 
+
+
+
                     # One combined PNG for both parts
+                    fluid_base = f"{base}_fluid"
+                    casing_base = f"{base}_casing"
+                    
                     png_path = os.path.join(STL_images_folder, base + ".png")
-                    # PNG_exporter([fluid_stl, casing_stl], img_path=png_path, opts=png_opts)
+                    PNG_exporter([os.path.join(objects_folder, fluid_base + ".stl"), os.path.join(objects_folder, casing_base + ".stl")], img_path=png_path, opts=png_opts)
 
                 except Exception as e:
                     print(f"Error generating {object_class} {object_index}: {e}")

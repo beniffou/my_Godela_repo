@@ -4,20 +4,28 @@ import json
 import os
 import sys
 
+'''
+Fill in the "meshes" (.geo_unrolled, .msh, 2x.json) folder
+'''
+
 def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 1)
-    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)    # MSH v2
-    gmsh.option.setNumber("Mesh.Binary", 0)             # ASCII
-
+    gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)       # MSH v2
+    gmsh.option.setNumber("Mesh.Binary", 0)                 # ASCII
     gmsh.clear()
-    STEP_path = os.path.join(objects_folder, STEP_name + "_fluid.step")
-    mesh_path = os.path.join(meshes_folder, STEP_name + "_fluid.msh")
-    geo_path = os.path.join(meshes_folder, STEP_name + "_fluid.geo_unrolled")
-    metadata_path = os.path.join(meshes_folder, STEP_name + "_fluid_metadata.json")
+    
+    STEP_path = os.path.join(objects_folder, STEP_name + "_fluid.step")                     # Recover STL parameters
+    tags_path = os.path.join(meshes_folder, STEP_name + "_surface_tags.json")               # Write surface assignations
+    geo_path = os.path.join(meshes_folder, STEP_name + "_fluid.geo_unrolled")               # Write the geometry
+    metadata_path = os.path.join(meshes_folder, STEP_name + "_fluid_metadata.json")         # Write the metadata
+    mesh_path = os.path.join(meshes_folder, STEP_name + "_fluid.msh")                       # Write the final mesh
 
+
+
+
+    # Import CAD and sync OCC so entities are queryable
     try:
-        # Import CAD and sync OCC so entities are queryable
         gmsh.model.occ.importShapes(STEP_path)
         gmsh.model.occ.synchronize()
     except Exception as e:
@@ -25,15 +33,19 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         gmsh.finalize()
         return
 
+
+
+
     # Bounding box
     xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(-1, -1)
 
-    # --- Mesh Density Calculation for ~20,000 Elements ---
-    TARGET_ELEMENT_COUNT = 500000 
+    # --- Mesh Density Calculation for ~500,000 Elements ---
+    TARGET_ELEMENT_COUNT = 500_000 
     
     Lx = xmax - xmin
     Ly = ymax - ymin
     Lz = zmax - zmin
+    print(f"Lx = {Lx}, Ly = {Ly}, Lz = {Lz}")
     
     # Check for zero volume (in case of 2D or bad geometry)
     if Lx * Ly * Lz < 1e-12:
@@ -42,14 +54,16 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     else:
         # 1. Calculate Bounding Box Volume
         V_box = Lx * Ly * Lz 
+        
         # 2. Calculate desired Volume per Element
         V_elem_target = V_box / TARGET_ELEMENT_COUNT
+        
         # 3. Estimate edge length L_target for a single tetrahedron: V_elem = (sqrt(2)/12) * L^3 (approximate)
+        
         # Using a simpler cubic approximation for a characteristic length: V_elem ~ L^3
         L_target = V_elem_target**(1/3.0) 
         
-    # Set this target length as the global mesh size
-    # This overrides the default automatic sizing and aims for a uniform size L_target.
+    # Set this target length as the global mesh size, this overrides the default automatic sizing and aims for a uniform size L_target.
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", L_target*0.05)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", L_target*3)
     
@@ -58,28 +72,30 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     
     print(f"Bounding Box Volume: {V_box:.4e}. Target Mesh Size (L_target): {L_target:.4e}")
     print(f"CFD Characteristic Length (Lc): {characteristic_length:.4f}")
-    # ----------------------------------------------------
+
+
+
 
     # Get volume(s)
-    volumes = gmsh.model.getEntities(3)
+    volumes = gmsh.model.getEntities(3)         # volumes = [(3, 1)]
     if not volumes:
         print(f"No 3D volume found in {STEP_name}")
         gmsh.finalize()
         return
-
-    # Single volume tag (first one)
     volume_tag = volumes[0][1]
 
-    # Collect all surfaces in enumeration order... [Skipped boilerplate for brevity]
 
     # Collect all surfaces in enumeration order so Surface_10 means the 10th entry below
     surfaces = gmsh.model.getEntities(2)
+    # surfaces = [(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 13), (2, 14)]
+    
     surface_by_index = {i + 1: s[1] for i, s in enumerate(surfaces)}
+    # surface_by_index = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12, 13: 13, 14: 14}
 
     # Define boundary role indices (NOTE: These must match the indices in the Python solver script)
     inlet_idx = 10
     outlet_idx = 4
-
+    
     if inlet_idx not in surface_by_index or outlet_idx not in surface_by_index:
         print(f"Requested inlet surface_{inlet_idx} or outlet surface_{outlet_idx} not found")
         gmsh.finalize()
@@ -89,7 +105,11 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     outlet_tag = surface_by_index[outlet_idx]
     wall_tags = [tag for idx, tag in surface_by_index.items() if idx not in (inlet_idx, outlet_idx)]
 
-    # Physical groups for boundaries
+
+
+    ''' Surface assignations '''
+    
+    # Physical groups for BOUNDARIES
     try:
         pg_inlet = gmsh.model.addPhysicalGroup(2, [inlet_tag])
         gmsh.model.setPhysicalName(2, pg_inlet, "velocity_inlet")
@@ -103,14 +123,30 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     except Exception as e:
         print(f"Error creating boundary physical groups: {e}")
 
-    # Physical group for volume
+    # Physical group for VOLUMES
     try:
         phys_vol = gmsh.model.addPhysicalGroup(3, [volume_tag])
         gmsh.model.setPhysicalName(3, phys_vol, "fluid")
     except Exception as e:
         print(f"Error creating volume physical group: {e}")
-
-    # Save geometry
+    
+    # WRITE SURFACE ASSIGNATIONS
+    role_map = {
+        "velocity_inlet": inlet_tag,
+        "pressure_outlet": outlet_tag,
+        "walls": wall_tags
+    }
+    try:
+        with open(tags_path, 'w') as f:
+            json.dump(role_map, f, indent=4)
+        print(f"Saved surface tags to {tags_path}")
+    except Exception as e:
+        print(f"Error saving surface tags: {e}")
+    
+    
+    
+    
+    # SAVE THE GEOMETRY
     try:
         gmsh.write(geo_path)
         print(f"Saved geometry to {geo_path}")
@@ -121,9 +157,13 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     gmsh.option.setNumber("Mesh.Algorithm3D", 10) # HXT is stable for tet meshes
     gmsh.option.setNumber("Mesh.Algorithm", 6)    # Netgen 2D/1D
     gmsh.option.setNumber("Mesh.QualityType", 1)
-    # --------------------------------------------------------
-
-    # Generate 3D mesh
+    
+    
+    
+    
+    ''' ================================================================================== '''
+    ''' ============================ Generate 3D mesh ==================================== '''
+    ''' ================================================================================== '''
     try:
         gmsh.model.mesh.generate(3)
     except Exception as e:
@@ -140,32 +180,29 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         print(f"Error optimizing mesh: {e}")
         gmsh.finalize()
         return
+    ''' ================================================================================== '''
     
-    # Report node count and element count (for verification)
+    
+    
+    
+    # Nodes
     nodes = gmsh.model.mesh.getNodes()
-    elements = gmsh.model.mesh.getElements(3) # Elements of dimension 3 (tetrahedra)
+    # nodes = [ array([    1,     2,     3, ..., 13361, 13362, 13363], dtype=uint64) , array([-0.02914075, -0.02914075,  0.        , ..., -0.02032896, -0.02724826,  0.0183107 ]) , array([], dtype=float64) ] for e.g.
+    
+    # Elements of dimension 3 (tetrahedra)
+    elements = gmsh.model.mesh.getElements(3)
+    # elements = ( array([4], dtype=int32) , [array([12387, 12388, 12389, ..., 72931, 72932, 72933], dtype=uint64)] , [array([ 6196,  3390,  6197, ...,  9182, 12149,  9805], dtype=uint64)] ) for e.g.
+    
+    num_nodes = len(nodes[0])
     num_elements = len(elements[1][0]) if elements and len(elements[1]) > 0 else 0
     
-    print(f"Final number of nodes: {len(nodes[0])}")
+    print(f"Final number of nodes: {num_nodes}")
     print(f"Final number of tetrahedra: {num_elements} (Target: {TARGET_ELEMENT_COUNT})")
 
-    # Write a simple map of roles... [Skipped boilerplate for brevity]
 
-    # Write a simple map of roles to underlying surface tags
-    tags_path = os.path.join(meshes_folder, STEP_name + "_surface_tags.json")
-    role_map = {
-        "velocity_inlet": inlet_tag,
-        "pressure_outlet": outlet_tag,
-        "walls": wall_tags
-    }
-    try:
-        with open(tags_path, 'w') as f:
-            json.dump(role_map, f, indent=4)
-        print(f"Saved surface tags to {tags_path}")
-    except Exception as e:
-        print(f"Error saving surface tags: {e}")
 
-    # --- NEW: Write Metadata (Characteristic Length) ---
+
+    # WRITE METADATA
     metadata = {
         "characteristic_length": characteristic_length,
         "mesh_target_L": L_target,
@@ -174,7 +211,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
             "xmin": xmin, "ymin": ymin, "zmin": zmin, 
             "xmax": xmax, "ymax": ymax, "zmax": zmax
         },
-        "num_nodes": len(nodes[0])
+        "num_nodes": num_nodes
     }
     try:
         with open(metadata_path, 'w') as f:
@@ -182,9 +219,11 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         print(f"Saved metadata to {metadata_path}")
     except Exception as e:
         print(f"Error saving metadata file: {e}")
-    # ----------------------------------------------------
 
-    # Write mesh
+
+
+
+    # WRITE MESH
     try:
         gmsh.write(mesh_path)
         print(f"Saved mesh to {mesh_path}")
@@ -192,6 +231,17 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         print(f"Error writing mesh: {e}")
 
     gmsh.finalize()
+
+
+
+
+
+
+
+
+''' ================================================================================== '''
+''' ====================================== main ====================================== '''
+''' ================================================================================== '''
 
 if __name__ == "__main__":
     objects_folder = "objects"
@@ -216,12 +266,16 @@ if __name__ == "__main__":
 
         for object_class in objects:
             # object_class =  fan
+            
             class_object = objects[object_class]
             # class_object =  {'length': [0.01, 0.02], 'width': [0.03, 0.07], 'convergence_ratio': [1, 1.4], 'wall_thickness': 0.005}
+            
             parameter_names = list(class_object.keys())
             # parameter_names =  ['length', 'width', 'convergence_ratio', 'wall_thickness']
 
             for object_index in range(num_samples_per_class):
                 STEP_name = str(object_class) + "_" + str(object_index)
+                # STEP_name = fan_i     \forall i \in {0,...,num_samples_per_class-1}
+                
                 print(f"Processing {STEP_name}...")
                 createGeometryAndMesh(STEP_name, objects_folder, meshes_folder)
