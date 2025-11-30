@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2506                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _615aae61-20250627 OPENFOAM=2506 version=2506
+Arch   : "LSB;label=32;scalar=64"
+Exec   : foamToVTK -noFunctionObjects -case /home/ubuntu/fan_CFD_dataset/cases/fan_18 -latestTime
+Date   : Nov 07 2025
+Time   : 15:04:18
+Host   : ip-172-31-37-87
+PID    : 175618
+I/O    : uncollated
+Case   : /home/ubuntu/fan_CFD_dataset/cases/fan_18
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Initial memory 122264 kB
+Create mesh for time = 2000
+
+VTK mesh topology: 0.1 s, 128184 kB
+Time: 2000
+    volScalar    : p
+    volVector    : U
+    Internal  : "VTK/fan_18_2000/internal.vtu"
+    Boundary  : "VTK/fan_18_2000/boundary/walls.vtp"
+    Boundary  : "VTK/fan_18_2000/boundary/pressure_outlet.vtp"
+    Boundary  : "VTK/fan_18_2000/boundary/velocity_inlet.vtp"
+Wrote in 0.17 s, 148496 kB
+
+End: 0.27 s, 148496 kB (peak)
+

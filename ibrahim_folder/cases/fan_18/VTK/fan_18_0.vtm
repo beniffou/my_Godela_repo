@@ -1,0 +1,17 @@
+<?xml version='1.0'?>
+<!-- time='0' -->
+<VTKFile type='vtkMultiBlockDataSet' version='1.0' byte_order='LittleEndian' header_type='UInt64'>
+  <vtkMultiBlockDataSet>
+    <DataSet name='internal' file='fan_18_0/internal.vtu' />
+    <Block name='boundary'>
+      <DataSet name='walls' file='fan_18_0/boundary/walls.vtp' />
+      <DataSet name='pressure_outlet' file='fan_18_0/boundary/pressure_outlet.vtp' />
+      <DataSet name='velocity_inlet' file='fan_18_0/boundary/velocity_inlet.vtp' />
+    </Block>
+  </vtkMultiBlockDataSet>
+  <FieldData>
+    <DataArray type='Float32' Name='TimeValue' NumberOfTuples='1' format='ascii'>
+0
+    </DataArray>
+  </FieldData>
+</VTKFile>

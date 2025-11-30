@@ -1,0 +1,7 @@
+{
+  "file-series-version" : "1.0",
+  "files" : [
+    { "name" : "fan_14_0.vtm", "time" : 0 },
+    { "name" : "fan_14_2000.vtm", "time" : 2000 }
+  ]
+}
