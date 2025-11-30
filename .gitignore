@@ -5,6 +5,7 @@
 /results/*
 /STL_images/*
 /visualization_results_matplotlib/*
+.venv/
 *.h5
 *.png
 __pycache__
