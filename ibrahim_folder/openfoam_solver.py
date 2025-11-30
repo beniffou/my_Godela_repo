@@ -2,6 +2,9 @@
 # openfoam_solver.py
 # Turbulent k-Omega SST run, stable numerics, BC checks, robust solvers, UPDF export
 
+import warnings
+warnings.simplefilter("ignore", SyntaxWarning)
+
 import os, re, glob, json, pathlib, shutil, argparse
 import numpy as np
 import h5py
@@ -904,6 +907,16 @@ def process_case(case_dir, results_dir=None, end_time=2000):
 
     updf_name = os.path.join(results_dir, f"{case_name}_UPDF_{time_name}.h5")
     write_updf(updf_name, coords, inlet_pts, inlet_vec, outlet_pts, outlet_p, Usol, Psol)
+
+
+
+
+
+
+
+''' ================================================================================== '''
+''' ====================================== main ====================================== '''
+''' ================================================================================== '''
 
 def main():
     parser = argparse.ArgumentParser()
