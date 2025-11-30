@@ -124,7 +124,7 @@ def _write_text(p, s):
 # ---------- controlDict writer ----------
 def write_control_dict(case_dir, end_time=2000, write_interval=1000):
     """
-    This function creates or overwrites system/controlDict with a standardized configuration for:
+    This function creates/overwrites system/controlDict with a standardized configuration for:
         - solver selection
         - start/end times
         - number of SIMPLE iterations
@@ -648,12 +648,14 @@ def read_characteristic_length(case_dir):
 
 # ---------- read BC JSON ----------
 def load_bc_json():
-    # BC_JSON is a path to your JSON file containing boundary conditions
+    # BC_JSON is a path to the JSON file containing the boundary conditions
     with open(BC_JSON, "r") as f:
         return json.load(f)
         # json.load(f) reads the JSON and converts it into a Python dictionary
 
 def get_inlet_outlet_from_json():
+    
+    # Read the BCs
     bc = load_bc_json()
     
     # Reads the "velocity_inlet" and "pressure_outlet" sections. If missing, uses an empty dictionary {} as a fallback
@@ -661,14 +663,14 @@ def get_inlet_outlet_from_json():
     outlet_spec = bc.get("pressure_outlet", {})
     
     # Takes the first surface from the list of surfaces in the JSON
-    inlet_patch  = inlet_spec.get("surfaces", [""])[0]
-    outlet_patch = outlet_spec.get("surfaces", [""])[0]
+    inlet_patch  = inlet_spec.get("surfaces", [""])[0]                          # = "Surface_10"
+    outlet_patch = outlet_spec.get("surfaces", [""])[0]                         # = "Surface_4"
     
     # Converts inlet velocity to a NumPy array [Ux, Uy, Uz]
     # Converts outlet pressure to a float
     # Default values [0,0,0] and 0.0 if JSON is missing
-    inlet_val  = np.array(inlet_spec.get("value", [0, 0, 0]), dtype=float)
-    outlet_val = float(outlet_spec.get("value", 0.0))
+    inlet_val  = np.array(inlet_spec.get("value", [0, 0, 0]), dtype=float)      # = [0, 0, 1]
+    outlet_val = float(outlet_spec.get("value", 0.0))                           # = 0
     
     return inlet_patch, outlet_patch, inlet_val, outlet_val
 
@@ -804,8 +806,11 @@ def write_updf(path, coords, inlet_ids, inlet_vec, outlet_ids, outlet_p, Usol, P
 # ---------- core ----------
 def process_case(case_dir, results_dir=None, end_time=2000):
     
-    # case_dir is the folder containing the OpenFOAM case (e.g., ./case_dir/case01)
-    # This line extracts just the folder name (e.g., "case01")
+    '''
+    case_dir is the folder containing the OpenFOAM case (e.g., case_dir = "/home/ubuntu/fan_CFD_dataset/cases/fan_0/")
+    '''
+    
+    # Removes all trailing "/" characters from the end of case_dir (e.g., case_dir = "/home/ubuntu/fan_CFD_dataset/cases/fan_0")
     case_name = os.path.basename(case_dir.rstrip("/"))
     
     # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
@@ -821,6 +826,7 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     # Create or overwrite system/controlDict with a standardized configuration
     write_control_dict(case_dir, end_time=end_time)
 
+    # Get the characteristic length
     try:
         Lc = read_characteristic_length(case_dir)
     except Exception as e:
@@ -843,6 +849,7 @@ def process_case(case_dir, results_dir=None, end_time=2000):
 
     # Ensure turbulence dictionaries are consistent + zero fields are cleared
     ensure_ras(case_dir)
+    
     # Write the turbulence parameters in the file
     k_init = write_k_init(case_dir, inlet_mag)
     write_omega_init(case_dir, inlet_mag, k_init, Lc)
@@ -868,11 +875,18 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p)
 
 
-    # --------------- Start calculations ---------------
+
+
+    ''' ================================================================================== '''
+    ''' ============================ Start calculations ================================== '''
+    ''' ================================================================================== '''
     # Runs potentialFoam (an OpenFOAM utility) that solves an incompressible potential flow
     run_potential(case_dir)
     # Runs the main steady-state RANS solver (simpleFoam)
     run_case(case_dir)
+    ''' ================================================================================== '''
+
+
 
 
     # --------------- Post-processing ---------------
