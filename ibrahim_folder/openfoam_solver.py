@@ -9,8 +9,8 @@ import meshio
 
 SURFACE_INLET_INDEX  = 10
 SURFACE_OUTLET_INDEX = 4
-CASES_GLOB = "/home/ubuntu/fan_CFD_dataset/cases/fan_*"
-BC_JSON    = "/home/ubuntu/fan_CFD_dataset/boundary_conditions/fan_boundary_conditions.json"
+CASES_GLOB = "cases/fan_*"
+BC_JSON    = "boundary_conditions/fan_boundary_conditions.json"
 
 # RANS Initial Condition Parameters for k-omega SST
 # Estimated Turbulence Intensity (5 percent for typical duct flow)
@@ -919,8 +919,10 @@ def main():
     if not cases:
         raise SystemExit("No cases found")
     for c in cases:
+        # c = cases\fan_i     \forall i \in {0,...,num_samples_per_class-1}
+        
         print(f"=== Case: {c} ===")
-        process_case(c, end_time=args.end_time)
+        # process_case(c, end_time=args.end_time)
 
 if __name__ == "__main__":
     main()
