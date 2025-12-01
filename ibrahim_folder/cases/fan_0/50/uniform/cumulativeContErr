@@ -11,13 +11,13 @@ FoamFile
     format      ascii;
     arch        "LSB;label=32;scalar=64";
     class       uniformDimensionedScalarField;
-    location    "100/uniform";
+    location    "50/uniform";
     object      cumulativeContErr;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 dimensions      [0 0 0 0 0 0 0];
-value           -0.00416276;
+value           0.00392405;
 
 
 

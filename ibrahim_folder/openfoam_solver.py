@@ -168,10 +168,10 @@ runTimeModifiable yes;
 
 # ---------- mesh boundary parsing ----------
 '''
-Extracts all patch name and their metadata: number of faces (nFaces) and starting index in the face list (startFace), from constant/polyMesh/boundary
+Extracts all BC names and their metadata: number of faces (nFaces) and starting index in the face list (startFace), from case_dir/constant/polyMesh/boundary
 - Returns a dictionary:
-    {"Surface_10": {"nFaces": 1200, "startFace": 0},
-    "Surface_4": {"nFaces": 50, "startFace": 1200},
+    {'velocity_inlet': {"nFaces": 1200, "startFace": 0},
+    'pressure_outlet': {"nFaces": 50, "startFace": 1200},
     ...}
 - Provides a convenient lookup for inlet/outlet detection and any further mesh operations
 '''
@@ -242,8 +242,11 @@ def detect_patch_names(case_dir):
     
     # read_boundary_table() returns a dictionary of all patch names from constant/polyMesh/boundary
     b = read_boundary_table(case_dir)
+    # b =     {'velocity_inlet': {"nFaces": 1200, "startFace": 0},
+    #         'pressure_outlet': {"nFaces": 50, "startFace": 1200},
+    #         ...}
     
-    # names = list of patch names ("Surface_10", "Surface_4")
+    # names = list of patch names ('velocity_inlet', 'pressure_outlet')
     names = list(b.keys())
     
     lower = {n.lower(): n for n in names}
@@ -290,7 +293,12 @@ def read_faces(case_dir):
     return faces
 
 def collect_patch_point_ids(case_dir, patch):
+    
     boundary = read_boundary_table(case_dir)
+    # boundary =    {'velocity_inlet': {"nFaces": 1200, "startFace": 0},
+    #               'pressure_outlet': {"nFaces": 50, "startFace": 1200},
+    #               ...}
+    
     e = boundary[patch]
     faces = read_faces(case_dir)
     start = e["startFace"]
@@ -806,14 +814,11 @@ def write_updf(path, coords, inlet_ids, inlet_vec, outlet_ids, outlet_p, Usol, P
     print(f"[H5] {path}")
 
 # ---------- core ----------
-def process_case(case_dir, results_dir=None, end_time=2000):
+def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000):
     
     '''
     case_dir is the folder containing the OpenFOAM case (e.g., case_dir = cases/fan_0)
     '''
-    
-    case_name = os.path.basename(case_dir.rstrip("/"))
-    # case_name = fan_i
     
     # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
     results_dir = results_dir or os.path.join(case_dir, "results_updf")
@@ -826,7 +831,7 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     ensure_transport(case_dir)
 
     # Create or overwrite system/controlDict with a standardized configuration
-    write_control_dict(case_dir, end_time=end_time)
+    write_control_dict(case_dir, end_time=end_time, write_interval=write_interval)
 
     # Get the characteristic length
     try:
@@ -841,12 +846,12 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     '''
     1. Inlet
     json_inlet: "Surface_10"
-    inlet_vec: [0, 0, 1]
+    inlet_vec: [0, 0, 1] (m/s)
     inlet_mag = np.linalg.norm([0,0,1]) = 1 m/s
     
     2. Outlet
     json_outlet: "Surface_4"
-    outlet_p: 0 Pa
+    outlet_p: 0 (Pa)
     '''
     
     # Ensure turbulence dictionaries are consistent + zero fields are cleared
@@ -865,7 +870,7 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     # Returns the patch names of the inlet and outlet patches used in the mesh
     detected_inlet, detected_outlet = detect_patch_names(case_dir)
     
-    # Extracts all patch name and their metadata: number of faces (nFaces) and starting index in the face list (startFace), from constant/polyMesh/boundary
+    # Extracts all BC names and their metadata: number of faces (nFaces) and starting index in the face list (startFace), from constant/polyMesh/boundary
     boundary = read_boundary_table(case_dir)
     
     inlet  = json_inlet  if json_inlet  in boundary else detected_inlet
@@ -901,9 +906,13 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     vtu_path, time_name = convert_to_vtk_latest(case_dir)
     coords, Usol, Psol = load_internal_vtu(vtu_path)
 
+    # Find the inlet and outlet coordinates
     inlet_pts  = collect_patch_point_ids(case_dir, inlet)
     outlet_pts = collect_patch_point_ids(case_dir, outlet)
 
+    case_name = os.path.basename(case_dir.rstrip("/"))
+    # case_name = fan_i
+    
     updf_name = os.path.join(results_dir, f"{case_name}_UPDF_{time_name}.h5")
     write_updf(updf_name, coords, inlet_pts, inlet_vec, outlet_pts, outlet_p, Usol, Psol)
 
@@ -930,11 +939,16 @@ def main():
     cases = sorted(glob.glob(CASES_GLOB))
     if not cases:
         raise SystemExit("No cases found")
+    
+    end_time = 100
+    write_interval = 50
+    
     for c in cases:
+        print(f"=== Case: {c} ===")
         # c = cases/fan_i     \forall i \in {0,...,num_samples_per_class-1}
         
-        print(f"=== Case: {c} ===")
-        process_case(c, end_time=args.end_time)
+        # process_case(c, end_time=args.end_time)
+        process_case(c, end_time=end_time, write_interval=write_interval)
         
         break
 

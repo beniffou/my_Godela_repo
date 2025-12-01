@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------*\
 | =========                 |                                                 |
 | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  2506                                  |
+|  \\    /   O peration     | Version:  2412                                  |
 |   \\  /    A nd           | Website:  www.openfoam.com                      |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
-Build  : _615aae61-20250627 OPENFOAM=2506 version=2506
+Build  : _f00230df-20250528 OPENFOAM=2412 patch=250528 version=2412
 Arch   : "LSB;label=32;scalar=64"
-Exec   : foamToVTK -noFunctionObjects -case /home/ubuntu/fan_CFD_dataset/cases/fan_0 -latestTime
-Date   : Nov 07 2025
-Time   : 14:38:32
-Host   : ip-172-31-37-87
-PID    : 167635
+Exec   : foamToVTK -noFunctionObjects -case cases/fan_0 -latestTime
+Date   : Nov 30 2025
+Time   : 22:33:18
+Host   : LAPTOP-GNN8LC85
+PID    : 16366
 I/O    : uncollated
-Case   : /home/ubuntu/fan_CFD_dataset/cases/fan_0
+Case   : /mnt/c/Users/Ibrahim/Desktop/Godela/my_Godela_repo/ibrahim_folder/cases/fan_0
 nProcs : 1
 trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
 fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
@@ -22,18 +22,18 @@ allowSystemOperations : Allowing user-supplied system call operations
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 Create time
 
-Initial memory 122264 kB
-Create mesh for time = 2000
+Initial memory 121472 kB
+Create mesh for time = 100
 
-VTK mesh topology: 0.09 s, 127508 kB
-Time: 2000
-    volScalar    : p
+VTK mesh topology: 0.14 s, 126944 kB
+Time: 100
+    volScalar    : k nut omega p
     volVector    : U
-    Internal  : "VTK/fan_0_2000/internal.vtu"
-    Boundary  : "VTK/fan_0_2000/boundary/walls.vtp"
-    Boundary  : "VTK/fan_0_2000/boundary/pressure_outlet.vtp"
-    Boundary  : "VTK/fan_0_2000/boundary/velocity_inlet.vtp"
-Wrote in 0.16 s, 145660 kB
+    Internal  : "VTK/fan_0_100/internal.vtu"
+    Boundary  : "VTK/fan_0_100/boundary/walls.vtp"
+    Boundary  : "VTK/fan_0_100/boundary/pressure_outlet.vtp"
+    Boundary  : "VTK/fan_0_100/boundary/velocity_inlet.vtp"
+Wrote in 0.47 s, 146372 kB
 
-End: 0.25 s, 145660 kB (peak)
+End: 0.61 s, 146372 kB (peak)
 
