@@ -1,0 +1,35 @@
+FoamFile
+{
+     version 2.0;
+     format ascii;
+     class volScalarField;
+     object nut;
+}
+
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 1e-10;
+
+boundaryField
+{
+    defaultPatch
+    {
+        type            calculated;
+        value            uniform 0;
+    }
+    walls
+    {
+        type            nutkWallFunction;
+        value            uniform 1e-10;
+    }
+    velocity_inlet
+    {
+        type            calculated;
+        value            uniform 0;
+    }
+    pressure_outlet
+    {
+        type            calculated;
+        value            uniform 0;
+    }
+}

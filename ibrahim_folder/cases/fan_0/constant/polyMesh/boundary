@@ -20,21 +20,21 @@ FoamFile
 (
     walls
     {
-        type            wall;
+        type          wall;
         physicalType    wall;
         nFaces          3584;
         startFace       82592;
     }
     pressure_outlet
     {
-        type            patch;
+        type          patch;
         physicalType    patch;
         nFaces          1888;
         startFace       86176;
     }
     velocity_inlet
     {
-        type            patch;
+        type          patch;
         physicalType    patch;
         nFaces          1888;
         startFace       88064;

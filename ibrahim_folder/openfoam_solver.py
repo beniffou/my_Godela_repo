@@ -35,7 +35,6 @@ for tool in ("potentialFoam", "simpleFoam", "foamToVTK"):
 ''' Executes an OpenFOAM solver from Python '''
 def run_with_pyfoam(argv, cwd=None, logname=None):
     r = BasicRunner(argv=argv, silent=False, server=False, logname=logname)
-    # Run the solver
     r.start()
     return r
 
@@ -517,7 +516,7 @@ def write_rasproperties(case_dir):
 
 
 '''
-Deletes old initialization files in 0/ that may exist from previous runs.
+Deletes old initialization files in case_dir/0/ that may exist from previous runs.
 Removes:
     - k → turbulent kinetic energy
     - epsilon → turbulent dissipation rate (for k-ε models)
@@ -810,11 +809,11 @@ def write_updf(path, coords, inlet_ids, inlet_vec, outlet_ids, outlet_p, Usol, P
 def process_case(case_dir, results_dir=None, end_time=2000):
     
     '''
-    case_dir is the folder containing the OpenFOAM case (e.g., case_dir = "/home/ubuntu/fan_CFD_dataset/cases/fan_0/")
+    case_dir is the folder containing the OpenFOAM case (e.g., case_dir = cases/fan_0)
     '''
     
-    # Removes all trailing "/" characters from the end of case_dir (e.g., case_dir = "/home/ubuntu/fan_CFD_dataset/cases/fan_0")
     case_name = os.path.basename(case_dir.rstrip("/"))
+    # case_name = fan_i
     
     # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
     results_dir = results_dir or os.path.join(case_dir, "results_updf")
@@ -849,11 +848,11 @@ def process_case(case_dir, results_dir=None, end_time=2000):
     json_outlet: "Surface_4"
     outlet_p: 0 Pa
     '''
-
+    
     # Ensure turbulence dictionaries are consistent + zero fields are cleared
     ensure_ras(case_dir)
     
-    # Write the turbulence parameters in the file
+    # Write the turbulence parameters in the file case_dir/0
     k_init = write_k_init(case_dir, inlet_mag)
     write_omega_init(case_dir, inlet_mag, k_init, Lc)
     write_nut_init(case_dir)
@@ -932,10 +931,12 @@ def main():
     if not cases:
         raise SystemExit("No cases found")
     for c in cases:
-        # c = cases\fan_i     \forall i \in {0,...,num_samples_per_class-1}
+        # c = cases/fan_i     \forall i \in {0,...,num_samples_per_class-1}
         
         print(f"=== Case: {c} ===")
-        # process_case(c, end_time=args.end_time)
+        process_case(c, end_time=args.end_time)
+        
+        break
 
 if __name__ == "__main__":
     main()
