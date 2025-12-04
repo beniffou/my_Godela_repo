@@ -6,7 +6,7 @@ from scipy.stats import qmc
 from utils.export_png import PNG_exporter
 
 '''
-Fill in the "objects" (.step and .stl for fluid and casing), "parameters" (.json) and "STL_images" (.png) folders
+Fill in the "objects" (.step and .stl for fluid and casing), "parameters" (.json) and "STL_images" (.png) folders with case parametric information.
 '''
 
 def fan_fluid(length, width, convergence_ratio):

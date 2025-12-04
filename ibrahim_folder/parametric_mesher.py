@@ -5,19 +5,22 @@ import os
 import sys
 
 '''
-Fill in the "meshes" (.geo_unrolled, .msh, 2x.json) folder
+Fill in the "meshes" (.geo_unrolled, .msh, 2x.json) folder with the case meshes.
 '''
 
 def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
+    # STEP_name = fan_i     \forall i \in {0,...,num_samples_per_class-1}
+    
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 1)
     gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)       # MSH v2
     gmsh.option.setNumber("Mesh.Binary", 0)                 # ASCII
     gmsh.clear()
     
-    # STEP_name = fan_i     \forall i \in {0,...,num_samples_per_class-1}
     
+    ### ----- Files ----- ###
     STEP_path = os.path.join(objects_folder, STEP_name + "_fluid.step")                     # Recover STL parameters
+    
     tags_path = os.path.join(meshes_folder, STEP_name + "_surface_tags.json")               # Write surface assignations
     geo_path = os.path.join(meshes_folder, STEP_name + "_fluid.geo_unrolled")               # Write the geometry
     metadata_path = os.path.join(meshes_folder, STEP_name + "_fluid_metadata.json")         # Write the metadata
@@ -38,6 +41,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
 
 
 
+    ''' =========== Mesh informations =========== '''
     # Bounding box
     xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(-1, -1)
 
@@ -78,15 +82,10 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
 
 
 
-    # Get volume(s)
-    volumes = gmsh.model.getEntities(3)         # volumes = [(3, 1)]
-    if not volumes:
-        print(f"No 3D volume found in {STEP_name}")
-        gmsh.finalize()
-        return
-    volume_tag = volumes[0][1]
-
-
+    ''' ============ Surface/Volume assignations ============ '''
+    
+    ### ----- SURFACES ----- ###
+    
     # Collect all surfaces in enumeration order so Surface_10 means the 10th entry below
     surfaces = gmsh.model.getEntities(2)
     # surfaces = [(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 13), (2, 14)]
@@ -106,10 +105,6 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     inlet_tag = surface_by_index[inlet_idx]
     outlet_tag = surface_by_index[outlet_idx]
     wall_tags = [tag for idx, tag in surface_by_index.items() if idx not in (inlet_idx, outlet_idx)]
-
-
-
-    ''' Surface assignations '''
     
     # Physical groups for BOUNDARIES
     try:
@@ -124,13 +119,25 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
             gmsh.model.setPhysicalName(2, pg_walls, "walls")
     except Exception as e:
         print(f"Error creating boundary physical groups: {e}")
+    ### ------------------- ###
 
+    ### ----- VOLUMES ----- ###
+    
+    # Get volume(s)
+    volumes = gmsh.model.getEntities(3)         # volumes = [(3, 1)]
+    if not volumes:
+        print(f"No 3D volume found in {STEP_name}")
+        gmsh.finalize()
+        return
+    volume_tag = volumes[0][1]
+    
     # Physical group for VOLUMES
     try:
         phys_vol = gmsh.model.addPhysicalGroup(3, [volume_tag])
         gmsh.model.setPhysicalName(3, phys_vol, "fluid")
     except Exception as e:
-        print(f"Error creating volume physical group: {e}")
+        print(f"Error creating volume physical group: {e}") 
+    ### -------------------- ###
     
     # WRITE SURFACE ASSIGNATIONS
     role_map = {
