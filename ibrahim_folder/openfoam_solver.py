@@ -124,17 +124,18 @@ def _write_text(p, s):
         f.write(s)
 
 # ---------- controlDict writer ----------
-def write_control_dict(case_dir, end_time=2000, write_interval=1000):
-    """
-    This function creates/overwrites system/controlDict with a standardized configuration for:
-        - solver selection
-        - start/end times
-        - number of SIMPLE iterations
-        - write frequency of results
-    This ensures every simulation run is consistent and automated.
-    end_time: total SIMPLE iterations (acts like epochs)
-    write_interval: how often to write results; defaults to end_time
-    """
+'''
+This function creates/overwrites case_dir/system/controlDict with a standardized configuration for:
+    - solver selection
+    - start/end times
+    - number of SIMPLE iterations
+    - write frequency of results
+This ensures every simulation run is consistent and automated.
+end_time: total SIMPLE iterations (acts like epochs)
+write_interval: how often to write results; defaults to end_time
+'''
+def write_control_dict(case_dir, end_time=2000, write_interval=None):
+    
     if write_interval is None:
         write_interval = end_time
 
@@ -188,7 +189,7 @@ def read_boundary_table(case_dir):
 
 
 '''
-The function ensures that three specific patches always have the correct OpenFOAM type and physicalType in the file:
+The function ensures that three specific patches (walls, velocity_inlet, pressure_outlet) always have the correct OpenFOAM type and physicalType in the file case_dir/constant/polyMesh/boundary:
     - walls
     - velocity_inlet
     - pressure_outlet
@@ -309,9 +310,59 @@ def collect_patch_point_ids(case_dir, patch):
             pts.add(pid)
     return np.array(sorted(pts), dtype=np.int64)
 
-# ---------- fvSolution/fvSchemes ----------
+# ---------- fvSchemes/fvSolution ----------
 '''
-The function sets linear solvers, relaxation factors, and SIMPLE algorithm parameters.
+The function sets the numerical discretization schemes for your OpenFOAM case in the file case_dir/system/fvSchemes
+This is an essential part of case preparation because it defines how derivatives, gradients, and divergences are computed during the simulation.
+'''
+def ensure_fvSchemes(case_dir):
+    path = os.path.join(case_dir, "system", "fvSchemes")
+    txt = (
+        "FoamFile\n"
+        "{\n"
+        "     version     2.0;\n"
+        "     format      ascii;\n"
+        "     class       dictionary;\n"
+        "     object      fvSchemes;\n"
+        "}\n\n"
+        "ddtSchemes\n"
+        "{\n"
+        "     default         steadyState;\n"
+        "}\n\n"
+        "gradSchemes\n"
+        "{\n"
+        "     default         leastSquares;\n"
+        "}\n\n"
+        "divSchemes\n"
+        "{\n"
+        "     div(phi,U)                  Gauss limitedLinearV 1;\n"
+        "     div(phi,k)                  Gauss upwind;\n"
+        "     div(phi,omega)              Gauss upwind;\n"
+        "     div((nuEff*dev2(T(grad(U)))))      Gauss linear;\n"
+        "     div(dev(tauEff))            Gauss linear;\n"
+        "}\n\n"
+        "laplacianSchemes\n"
+        "{\n"
+        "     default         Gauss linear corrected;\n"
+        "}\n\n"
+        "interpolationSchemes\n"
+        "{\n"
+        "     default         linear;\n"
+        "}\n\n"
+        "snGradSchemes\n"
+        "{\n"
+        "     default         corrected;\n"
+        "}\n\n"
+        "wallDist\n"
+        "{\n"
+        "     method          meshWave;\n"
+        "}\n"
+    )
+    _write_text(path, txt)
+    print(f"[FIX] fvSchemes -> {path}")
+
+'''
+The function sets linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
 This is the last piece of your preprocessing pipeline that ensures your OpenFOAM case can actually run successfully.
 '''
 def write_fvSolution(case_dir):
@@ -409,61 +460,10 @@ relaxationFactors
 """
     _write_text(path, txt)
     print(f"[FIX] wrote clean fvSolution -> {path}")
-
-
-'''
-The function sets the numerical discretization schemes for your OpenFOAM case.
-This is an essential part of case preparation because it defines how derivatives, gradients, and divergences are computed during the simulation.
-'''
-def ensure_fvSchemes(case_dir):
-    path = os.path.join(case_dir, "system", "fvSchemes")
-    txt = (
-        "FoamFile\n"
-        "{\n"
-        "     version     2.0;\n"
-        "     format      ascii;\n"
-        "     class       dictionary;\n"
-        "     object      fvSchemes;\n"
-        "}\n\n"
-        "ddtSchemes\n"
-        "{\n"
-        "     default         steadyState;\n"
-        "}\n\n"
-        "gradSchemes\n"
-        "{\n"
-        "     default         leastSquares;\n"
-        "}\n\n"
-        "divSchemes\n"
-        "{\n"
-        "     div(phi,U)                  Gauss limitedLinearV 1;\n"
-        "     div(phi,k)                  Gauss upwind;\n"
-        "     div(phi,omega)              Gauss upwind;\n"
-        "     div((nuEff*dev2(T(grad(U)))))      Gauss linear;\n"
-        "     div(dev(tauEff))            Gauss linear;\n"
-        "}\n\n"
-        "laplacianSchemes\n"
-        "{\n"
-        "     default         Gauss linear corrected;\n"
-        "}\n\n"
-        "interpolationSchemes\n"
-        "{\n"
-        "     default         linear;\n"
-        "}\n\n"
-        "snGradSchemes\n"
-        "{\n"
-        "     default         corrected;\n"
-        "}\n\n"
-        "wallDist\n"
-        "{\n"
-        "     method          meshWave;\n"
-        "}\n"
-    )
-    _write_text(path, txt)
-    print(f"[FIX] fvSchemes -> {path}")
-    
+ 
 
 '''
-This function ensures that your OpenFOAM case contains a valid: constant/transportProperties
+This function ensures that your OpenFOAM case contains a valid file at case_dir/constant/transportProperties
 If the file does not exist, it creates a minimal valid version with:
     - a Newtonian model
     - a viscosity nu = 1e-5 (default)
@@ -482,7 +482,7 @@ def ensure_transport(case_dir, nu=1e-5):
 
 # ---------- turbulence: enforce RANS kOmegaSST ----------
 '''
-File created: constant/turbulenceProperties
+File created: case_dir/constant/turbulenceProperties
 Simulation type: RAS (Reynolds-Averaged Navier-Stokes)
 Turbulence model: kOmegaSST (good for wall-bounded flows)
 Flags:
@@ -508,7 +508,7 @@ def write_turbulence_properties_turbulent(case_dir):
 
 
 '''
-File created: constant/RASProperties
+File created: case_dir/constant/RASProperties
 Contains an empty block kOmegaSSTCoeffs {}
 This is necessary because OpenFOAM expects a dedicated coefficient block for the RAS model. Even empty, it allows OpenFOAM to start the simulation.
 '''
@@ -552,6 +552,9 @@ def ensure_ras(case_dir):
     write_rasproperties(case_dir)
     purge_turbulence_zero_dir(case_dir)
 
+'''
+Write the turbulence parameters in the files case_dir/0/k , case_dir/0/omega , case_dir/0/nut resp.
+'''
 def write_k_init(case_dir, inlet_mag):
     k_init = 1.5 * (inlet_mag * TURBULENCE_INTENSITY) ** 2
     path = os.path.join(case_dir, "0", "k")
@@ -685,7 +688,7 @@ def get_inlet_outlet_from_json():
     return inlet_patch, outlet_patch, inlet_val, outlet_val
 
 # ---------- BC writers and checks ----------
-'''Write boundary conditions for all fields in the file, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure'''
+'''Write boundary conditions for all fields in the files case_dir/0/U and case_dir/0/p, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure'''
 def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
     boundary = read_boundary_table(case_dir)
     patch_names = list(boundary.keys())
@@ -820,27 +823,20 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     case_dir is the folder containing the OpenFOAM case (e.g., case_dir = cases/fan_0)
     '''
     
-    # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
-    results_dir = results_dir or os.path.join(case_dir, "results_updf")
-    pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
-    # mkdir(..., exist_ok=True) means: create the folder, don't crash if it already exists
-
-    # Ensure that three specific patches (walls, velocity_inlet, pressure_outlet) always have the correct OpenFOAM type and physicalType in the file
+    
+    ''' ============================================================================== '''
+    ''' ============================ Pre-Processing ================================== '''
+    ''' ============================================================================== '''
+    # Ensure that three specific patches (walls, velocity_inlet, pressure_outlet) always have the correct OpenFOAM type and physicalType in the file case_dir/constant/polyMesh/boundary
     normalize_boundary_file(case_dir)
-    # Ensure that the OpenFOAM case contains a valid constant/transportProperties
+    
+    # Ensure that the OpenFOAM case contains a valid file at case_dir/constant/transportProperties
     ensure_transport(case_dir)
 
-    # Create or overwrite system/controlDict with a standardized configuration
+    # Create or overwrite case_dir/system/controlDict with a standardized configuration
     write_control_dict(case_dir, end_time=end_time, write_interval=write_interval)
 
-    # Get the characteristic length
-    try:
-        Lc = read_characteristic_length(case_dir)
-    except Exception as e:
-        print(f"[ERROR] Failed to read characteristic length: {e}")
-        Lc = 0.005
-        print(f"[FALLBACK] Using default Lc = {Lc} for stability.")
-
+    # Impose the boundary conditions
     json_inlet, json_outlet, inlet_vec, outlet_p = get_inlet_outlet_from_json()
     inlet_mag = np.linalg.norm(inlet_vec)
     '''
@@ -854,17 +850,26 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     outlet_p: 0 (Pa)
     '''
     
-    # Ensure turbulence dictionaries are consistent + zero fields are cleared
+    # Create and ensure turbulence dictionaries are consistent + Deletes old initialization files in case_dir/0/
+    # Files created: case_dir/constant/turbulenceProperties (choose the turbulence model) , case_dir/constant/RASProperties
     ensure_ras(case_dir)
     
-    # Write the turbulence parameters in the file case_dir/0
+    # Get the characteristic length
+    try:
+        Lc = read_characteristic_length(case_dir)
+    except Exception as e:
+        print(f"[ERROR] Failed to read characteristic length: {e}")
+        Lc = 0.005
+        print(f"[FALLBACK] Using default Lc = {Lc} for stability.")
+    
+    # Write the turbulence parameters in the files case_dir/0/k , case_dir/0/omega , case_dir/0/nut resp.
     k_init = write_k_init(case_dir, inlet_mag)
     write_omega_init(case_dir, inlet_mag, k_init, Lc)
     write_nut_init(case_dir)
 
-    # Set the numerical discretization schemes for the OpenFOAM case
+    # Set the numerical discretization schemes for the OpenFOAM case in the file case_dir/system/fvSchemes
     ensure_fvSchemes(case_dir)
-    # Set linear solvers, relaxation factors, and SIMPLE algorithm parameters
+    # Set linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
     write_fvSolution(case_dir)
 
     # Returns the patch names of the inlet and outlet patches used in the mesh
@@ -878,8 +883,9 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
 
     print(f"[PATCHES] inlet='{inlet}' outlet='{outlet}'   U_in={tuple(inlet_vec)}   p_out={outlet_p}")
 
-    # Write boundary conditions for all fields in the file folder, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure
+    # Write boundary conditions for all fields in the files case_dir/0/U and case_dir/0/p, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure
     write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p)
+    ''' ============================================================================== '''
 
 
 
@@ -896,7 +902,9 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
 
 
 
-    # --------------- Post-processing ---------------
+    ''' =============================================================================== '''
+    ''' ============================ Post-Processing ================================== '''
+    ''' =============================================================================== '''
     # Find the most recent time directory created by simpleFoam
     latest = _latest_time_dir(case_dir)
     if latest is None:
@@ -913,8 +921,14 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     case_name = os.path.basename(case_dir.rstrip("/"))
     # case_name = fan_i
     
-    updf_name = os.path.join(results_dir, f"{case_name}_UPDF_{time_name}.h5")
+    # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
+    results_dir = results_dir or os.path.join(case_dir, "results_updf")
+    pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
+    # mkdir(..., exist_ok=True) means: create the folder, don't crash if it already exists
+    
+    updf_name = os.path.join(results_dir, f"{case_name}_UPDF_{end_time}.h5")
     write_updf(updf_name, coords, inlet_pts, inlet_vec, outlet_pts, outlet_p, Usol, Psol)
+    ''' =============================================================================== '''
 
 
 
@@ -941,7 +955,7 @@ def main():
         raise SystemExit("No cases found")
     
     end_time = 100
-    write_interval = 50
+    write_interval = None
     
     for c in cases:
         print(f"=== Case: {c} ===")
