@@ -9,6 +9,8 @@ import os, re, glob, json, pathlib, shutil, argparse
 import numpy as np
 import h5py
 import meshio
+from plot_residuals_from_log import plot_residuals_from_log
+from plot_mass_flow import plot_mass_flow
 
 SURFACE_INLET_INDEX  = 10
 SURFACE_OUTLET_INDEX = 4
@@ -49,8 +51,9 @@ def run_potential(case_dir):
 '''Runs the main steady-state RANS solver (simpleFoam)'''
 def run_case(case_dir):
     print(f"[RUN] {case_dir}")
-    # -case case_dir: points solver to the prepared case folder
-    run_with_pyfoam(["simpleFoam", "-noFunctionObjects", "-case", case_dir],
+    # run_with_pyfoam(["simpleFoam", "-noFunctionObjects", "-case", case_dir],
+    #                 logname="log.simpleFoam")
+    run_with_pyfoam(["simpleFoam", "-case", case_dir],
                     logname="log.simpleFoam")
 
 '''
@@ -72,7 +75,7 @@ def _latest_time_dir(case_dir):
 - Returns the path to the internal field VTU file and the corresponding simulation time
 - Used for post-processing (visualization, Python analysis)
 '''
-def convert_to_vtk_latest(case_dir):
+def convert_to_vtk(case_dir, end_time):
     print(f"[VTK] {case_dir}")
     try:
         run_with_pyfoam(["foamToVTK", "-noFunctionObjects", "-case", case_dir, "-latestTime"],
@@ -88,28 +91,15 @@ def convert_to_vtk_latest(case_dir):
     if not dirs:
         raise RuntimeError(f"No VTK subdirs in {vtk_root}")
 
-    def parse_time(name):
-        if "_" in name:
-            suf = name.split("_")[-1]
-            try:
-                return float(suf)
-            except Exception:
-                return -np.inf
-        try:
-            return float(name)
-        except Exception:
-            return -np.inf
-
-    dirs.sort(key=parse_time)
-    latest = dirs[-1]
-    vtudir = os.path.join(vtk_root, latest)
+    case_name = case_dir.split("/")[-1]
+    vtudir = os.path.join(vtk_root, f"{case_name}_{end_time}")
     internal = os.path.join(vtudir, "internal.vtu")
     if not os.path.exists(internal):
         alt = os.path.join(vtudir, "internalMesh.vtu")
         internal = alt if os.path.exists(alt) else internal
     if not os.path.exists(internal):
         raise RuntimeError(f"internal.vtu not found in {vtudir}")
-    return internal, str(parse_time(latest))
+    return internal
 
 # ---------- text helpers ----------
 def _read_text(p):
@@ -134,7 +124,7 @@ This ensures every simulation run is consistent and automated.
 end_time: total SIMPLE iterations (acts like epochs)
 write_interval: how often to write results; defaults to end_time
 '''
-def write_control_dict(case_dir, end_time=2000, write_interval=None):
+def write_control_dict(case_dir, end_time, write_interval, inlet_patch, outlet_patch):
     
     if write_interval is None:
         write_interval = end_time
@@ -163,6 +153,35 @@ writeCompression off;
 timeFormat      general;
 timePrecision   6;
 runTimeModifiable yes;
+
+functions
+{{
+    massFlowInlet {{
+		type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            {inlet_patch};
+        operation       sum;
+        fields          (phi);
+	}}
+
+    massFlowOutlet {{
+		type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            {outlet_patch};
+        operation       sum;
+        fields          (phi);
+	}}
+}}
 """
     _write_text(path, txt)
     print(f"[FIX] controlDict -> endTime={end_time}, writeInterval={write_interval}")
@@ -241,12 +260,13 @@ Returns the patch names of the inlet and outlet patches in the mesh
 '''
 def detect_patch_names(case_dir):
     
-    # read_boundary_table() returns a dictionary of all patch names from constant/polyMesh/boundary
+    # read_boundary_table() returns a dictionary of all patch names from case_dir/constant/polyMesh/boundary
     b = read_boundary_table(case_dir)
-    # b =     {'velocity_inlet': {"nFaces": 1200, "startFace": 0},
-    #         'pressure_outlet': {"nFaces": 50, "startFace": 1200},
-    #         ...}
+    # =  {'walls': {'nFaces': 3584, 'startFace': 82592},
+    #    'pressure_outlet': {'nFaces': 1888, 'startFace': 86176}, 
+    #    'velocity_inlet': {'nFaces': 1888, 'startFace': 88064}}
     
+        
     # names = list of patch names ('velocity_inlet', 'pressure_outlet')
     names = list(b.keys())
     
@@ -267,7 +287,7 @@ def detect_patch_names(case_dir):
     if outlet is None:
         outlet = pick(names, "outlet", "pressure")  # subset of names that contains either "outlet" and/or "pressure" as substring
     
-    # Third round: assign manually the patch names. Here, inlet is associated to "Surface_10" and outlet to "Surface_4"
+    # Third round: look if "Surface_{SURFACE_INLET_INDEX}" and "Surface_{SURFACE_OUTLET_INDEX}" are in the boundary table (b)
     if inlet is None:
         cand = f"Surface_{SURFACE_INLET_INDEX}"
         inlet = cand if cand in b else None
@@ -524,7 +544,7 @@ def write_rasproperties(case_dir):
 
 
 '''
-Deletes old initialization files in case_dir/0/ that may exist from previous runs.
+Deletes old initialization files in case_dir/0/k,omega,nut that may exist from previous runs.
 Removes:
     - k → turbulent kinetic energy
     - epsilon → turbulent dissipation rate (for k-ε models)
@@ -833,10 +853,7 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     # Ensure that the OpenFOAM case contains a valid file at case_dir/constant/transportProperties
     ensure_transport(case_dir)
 
-    # Create or overwrite case_dir/system/controlDict with a standardized configuration
-    write_control_dict(case_dir, end_time=end_time, write_interval=write_interval)
-
-    # Impose the boundary conditions
+    # Impose the boundary conditions from the BC_JSON file + Extract the BC names from the BC_JSON file
     json_inlet, json_outlet, inlet_vec, outlet_p = get_inlet_outlet_from_json()
     inlet_mag = np.linalg.norm(inlet_vec)
     '''
@@ -850,7 +867,7 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     outlet_p: 0 (Pa)
     '''
     
-    # Create and ensure turbulence dictionaries are consistent + Deletes old initialization files in case_dir/0/
+    # Create and ensure turbulence dictionaries are consistent + Deletes old initialization files in case_dir/0/k,omega,nut
     # Files created: case_dir/constant/turbulenceProperties (choose the turbulence model) , case_dir/constant/RASProperties
     ensure_ras(case_dir)
     
@@ -872,16 +889,27 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     # Set linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
     write_fvSolution(case_dir)
 
-    # Returns the patch names of the inlet and outlet patches used in the mesh
+    # Returns the assumed names of the inlet and outlet from the different surface names in the mesh (case_dir/constant/polyMesh/boundary)
     detected_inlet, detected_outlet = detect_patch_names(case_dir)
+    # detected_inlet, detected_outlet = velocity_inlet, pressure_outlet
     
-    # Extracts all BC names and their metadata: number of faces (nFaces) and starting index in the face list (startFace), from constant/polyMesh/boundary
+    # Extracts all BC names and their metadata from case_dir/constant/polyMesh/boundary: number of faces (nFaces) and starting index in the face list (startFace)
     boundary = read_boundary_table(case_dir)
+    # boundary = {'walls': {'nFaces': 3584, 'startFace': 82592}, 'pressure_outlet': {'nFaces': 1888, 'startFace': 86176}, 'velocity_inlet': {'nFaces': 1888, 'startFace': 88064}}
     
-    inlet  = json_inlet  if json_inlet  in boundary else detected_inlet
+    inlet  = json_inlet  if json_inlet in boundary else detected_inlet
     outlet = json_outlet if json_outlet in boundary else detected_outlet
+    # inlet, outlet = velocity_inlet, pressure_outlet
+    
+    ''' 
+    "boundary" contains the BC names from the mesh generation process, these names will for sure be used later in the code.
+    If the BC names of the inlet/outlet from the BC_JSON file are contained in "boundary" (i.e. they indeed exists), we keep them. Otherwise, they don't exist and we pick those guessed found in "boundary" (detected_inlet and detected_outlet).
+    '''
 
     print(f"[PATCHES] inlet='{inlet}' outlet='{outlet}'   U_in={tuple(inlet_vec)}   p_out={outlet_p}")
+    
+    # Create or overwrite case_dir/system/controlDict with a standardized configuration
+    write_control_dict(case_dir, end_time, write_interval, inlet, outlet)
 
     # Write boundary conditions for all fields in the files case_dir/0/U and case_dir/0/p, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure
     write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p)
@@ -905,21 +933,17 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     ''' =============================================================================== '''
     ''' ============================ Post-Processing ================================== '''
     ''' =============================================================================== '''
-    # Find the most recent time directory created by simpleFoam
-    latest = _latest_time_dir(case_dir)
-    if latest is None:
-        raise RuntimeError(f"simpleFoam produced no time directories in {case_dir}. See log.simpleFoam.")
+    
+    case_name = os.path.basename(case_dir.rstrip("/"))
+    # case_name = fan_i
 
     # Converts OpenFOAM results of a case to VTK (.vtu) format using foamToVTK
-    vtu_path, time_name = convert_to_vtk_latest(case_dir)
+    vtu_path = convert_to_vtk(case_dir, end_time)
     coords, Usol, Psol = load_internal_vtu(vtu_path)
 
     # Find the inlet and outlet coordinates
     inlet_pts  = collect_patch_point_ids(case_dir, inlet)
     outlet_pts = collect_patch_point_ids(case_dir, outlet)
-
-    case_name = os.path.basename(case_dir.rstrip("/"))
-    # case_name = fan_i
     
     # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
     results_dir = results_dir or os.path.join(case_dir, "results_updf")
@@ -928,6 +952,13 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     
     updf_name = os.path.join(results_dir, f"{case_name}_UPDF_{end_time}.h5")
     write_updf(updf_name, coords, inlet_pts, inlet_vec, outlet_pts, outlet_p, Usol, Psol)
+    
+    # Plot the residuals
+    plots_dir = os.path.join(case_dir, "plots")
+    pathlib.Path(plots_dir).mkdir(parents=True, exist_ok=True)
+    
+    plot_residuals_from_log(case_dir, end_time)
+    plot_mass_flow(case_dir, end_time)
     ''' =============================================================================== '''
 
 

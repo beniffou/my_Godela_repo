@@ -21,3 +21,32 @@ writeCompression off;
 timeFormat      general;
 timePrecision   6;
 runTimeModifiable yes;
+
+functions
+{
+    massFlowInlet {
+		type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            velocity_inlet;
+        operation       sum;
+        fields          (phi);
+	}
+
+    massFlowOutlet {
+		type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            pressure_outlet;
+        operation       sum;
+        fields          (phi);
+	}
+}

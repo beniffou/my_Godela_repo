@@ -16,6 +16,23 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+cdf7e925f5746741c316f5fbcf39ad0dfca90775
+{
+    massFlowInlet
+    {
+        scalar
+        {
+            sum(velocity_inlet,phi) -0.004314364837729739;
+        }
+    }
+    massFlowOutlet
+    {
+        scalar
+        {
+            sum(pressure_outlet,phi) 0.004314344252902065;
+        }
+    }
+}
 
 
 // ************************************************************************* //
