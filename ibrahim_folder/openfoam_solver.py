@@ -5,12 +5,12 @@
 import warnings
 warnings.simplefilter("ignore", SyntaxWarning)
 
-import os, re, glob, json, pathlib, shutil, argparse
+import os, re, glob, json, pathlib, shutil, argparse, subprocess
 import numpy as np
 import h5py
 import meshio
 from plot_residuals_from_log import plot_residuals_from_log
-from plot_mass_flow import plot_mass_flow
+from plot_quantities import plots
 
 SURFACE_INLET_INDEX  = 10
 SURFACE_OUTLET_INDEX = 4
@@ -51,10 +51,19 @@ def run_potential(case_dir):
 '''Runs the main steady-state RANS solver (simpleFoam)'''
 def run_case(case_dir):
     print(f"[RUN] {case_dir}")
-    # run_with_pyfoam(["simpleFoam", "-noFunctionObjects", "-case", case_dir],
-    #                 logname="log.simpleFoam")
     run_with_pyfoam(["simpleFoam", "-case", case_dir],
                     logname="log.simpleFoam")
+
+
+'''
+Transfer the mesh associated to fan_i from the meshes/ folder into constant/polyMesh/ folder
+'''
+def update_openfoam_mesh(mesh_path, case_path):
+    # Command string exactly as you would type in your terminal
+    cmd = f"gmshToFoam {mesh_path}"
+
+    # Use subprocess to run the command in a bash shell
+    subprocess.run(cmd, shell=True, cwd=case_path, check=True, executable="/bin/bash")
 
 '''
 OpenFOAM organizes results by time directories: 0, 100, 200, ...
@@ -91,7 +100,9 @@ def convert_to_vtk(case_dir, end_time):
     if not dirs:
         raise RuntimeError(f"No VTK subdirs in {vtk_root}")
 
-    case_name = case_dir.split("/")[-1]
+    case_name = os.path.basename(case_dir.rstrip("/"))
+    # case_name = fan_i
+    
     vtudir = os.path.join(vtk_root, f"{case_name}_{end_time}")
     internal = os.path.join(vtudir, "internal.vtu")
     if not os.path.exists(internal):
@@ -156,9 +167,11 @@ runTimeModifiable yes;
 
 functions
 {{
+    // Mass flow at inlet
     massFlowInlet {{
 		type            surfaceFieldValue;
         libs            (fieldFunctionObjects);
+        enabled         true;
         writeControl    timeStep;
         writeInterval   1;
         log             yes;
@@ -169,9 +182,11 @@ functions
         fields          (phi);
 	}}
 
+    // Mass flow at outlet
     massFlowOutlet {{
 		type            surfaceFieldValue;
         libs            (fieldFunctionObjects);
+        enabled         true;
         writeControl    timeStep;
         writeInterval   1;
         log             yes;
@@ -181,6 +196,21 @@ functions
         operation       sum;
         fields          (phi);
 	}}
+
+    // Area-averaged velocity at outlet (gives Ux, Uy, Uz components)
+    outletVelocity {{
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            {outlet_patch};
+        operation       areaAverage;
+        fields          (U);
+    }}
 }}
 """
     _write_text(path, txt)
@@ -385,98 +415,98 @@ def ensure_fvSchemes(case_dir):
 The function sets linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
 This is the last piece of your preprocessing pipeline that ensures your OpenFOAM case can actually run successfully.
 '''
-def write_fvSolution(case_dir):
+def write_fvSolution(case_dir, relax_U=0.7, relax_p=0.3, relax_k=0.5, relax_omega=0.5):
     path = os.path.join(case_dir, "system", "fvSolution")
-    txt = """FoamFile
-{
+    txt = f"""FoamFile
+{{
     version      2.0;
     format       ascii;
     class        dictionary;
     object       fvSolution;
-}
+}}
 
 solvers
-{
+{{
     p
-    {
+    {{
         solver          GAMG;
         tolerance       1e-07;
         relTol          0.01;
         smoother        GaussSeidel;
         nFinestSweeps   2;
         maxIter         100;
-    }
+    }}
 
     U
-    {
+    {{
         solver          smoothSolver;
         smoother        symGaussSeidel;
         nSweeps         2;
         tolerance       1e-08;
         relTol          0.1;
-    }
+    }}
 
     Phi
-    {
+    {{
         solver          GAMG;
         tolerance       1e-07;
         relTol          0.0;
         smoother        GaussSeidel;
         nFinestSweeps   2;
         maxIter         100;
-    }
+    }}
 
     k
-    {
+    {{
         solver          smoothSolver;
         smoother        symGaussSeidel;
         nSweeps         2;
         tolerance       1e-07;
         relTol          0.1;
-    }
+    }}
     omega
-    {
+    {{
         solver          smoothSolver;
         smoother        symGaussSeidel;
         nSweeps         2;
         tolerance       1e-07;
         relTol          0.1;
-    }
-}
+    }}
+}}
 
 SIMPLE
-{
+{{
     nNonOrthogonalCorrectors 4;
     pRefCell 0;
     pRefValue 0;
     residualControl
-    {
+    {{
         U 1e-5;
         p 1e-4;
         k 1e-5;
         omega 1e-5;
-    }
+    }}
     
     limiters
-    {
+    {{
         k           1e-15;
         omega       1e-15;
-    }
-}
+    }}
+}}
 
 relaxationFactors
-{
+{{
     fields
-    {
-        p 0.3; 
-        k 0.5;
-        omega 0.;
-    }
+    {{
+        p {relax_p}; 
+        k {relax_k};
+        omega {relax_omega};
+    }}
     equations
-    {
-        U 0.7;
-    }
-}
+    {{
+        U {relax_U};
+    }}
+}}
 """
     _write_text(path, txt)
     print(f"[FIX] wrote clean fvSolution -> {path}")
@@ -726,6 +756,51 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
         return bf
 
 
+    # -------------------------------------------------------------------
+    ### Set Phi BCs ###
+    path = os.path.join(case_dir, "0", "Phi")
+    
+    # Set different potential values at inlet vs outlet
+    # This creates the driving force for potential flow
+    phi_inlet = 1.0    # Arbitrary non-zero value
+    phi_outlet = 0.0   # Reference value
+    
+    txt = f"""FoamFile
+    {{
+        version     2.0;
+        format      ascii;
+        class       volScalarField;
+        object      Phi;
+    }}
+
+    dimensions      [0 2 -1 0 0 0 0];
+
+    internalField   uniform 0;
+
+    boundaryField
+    {{
+        velocity_inlet
+        {{
+            type            fixedValue;
+            value           uniform {phi_inlet};
+        }}
+        
+        pressure_outlet
+        {{
+            type            fixedValue;
+            value           uniform {phi_outlet};
+        }}
+        
+        walls
+        {{
+            type            slip;
+        }}
+    }}
+    """
+    _write_text(path, txt)
+    # -------------------------------------------------------------------
+    
+    
     ### Set velocity BCs ###
     U = ParsedParameterFile(os.path.join(case_dir, "0", "U"))
     Ub = reset_boundary_field(U)
@@ -745,8 +820,8 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
             Ub[p] = {"type": "noSlip"}
         else:
             Ub[p] = {"type": "zeroGradient"}
-    if "internalField" not in U:
-        U["internalField"] = "uniform (0 0 0)"
+
+    U["internalField"] = "uniform (0 0 0)"
     U.writeFile()
 
 
@@ -760,8 +835,8 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
             Pb[p] = {"type": "fixedValue", "value": f"uniform {outlet_p}"}
         else:
             Pb[p] = {"type": "zeroGradient"}
-    if "internalField" not in P:
-        P["internalField"] = "uniform 0"
+            
+    P["internalField"] = "uniform 0"
     P.writeFile()
 
     boundary = read_boundary_table(case_dir)
@@ -843,6 +918,10 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     case_dir is the folder containing the OpenFOAM case (e.g., case_dir = cases/fan_0)
     '''
     
+    # If the folder case_dir/postProcessing exists, we delete it
+    if os.path.isdir(f"{case_dir}/postProcessing"):
+        shutil.rmtree(f"{case_dir}/postProcessing")
+            
     
     ''' ============================================================================== '''
     ''' ============================ Pre-Processing ================================== '''
@@ -886,8 +965,10 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
 
     # Set the numerical discretization schemes for the OpenFOAM case in the file case_dir/system/fvSchemes
     ensure_fvSchemes(case_dir)
+    
     # Set linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
-    write_fvSolution(case_dir)
+    relax_U = 0.5; relax_p = 0.2; relax_k = 0.5; relax_omega = 0.5
+    write_fvSolution(case_dir, relax_U, relax_p, relax_k, relax_omega)
 
     # Returns the assumed names of the inlet and outlet from the different surface names in the mesh (case_dir/constant/polyMesh/boundary)
     detected_inlet, detected_outlet = detect_patch_names(case_dir)
@@ -896,13 +977,15 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     # Extracts all BC names and their metadata from case_dir/constant/polyMesh/boundary: number of faces (nFaces) and starting index in the face list (startFace)
     boundary = read_boundary_table(case_dir)
     # boundary = {'walls': {'nFaces': 3584, 'startFace': 82592}, 'pressure_outlet': {'nFaces': 1888, 'startFace': 86176}, 'velocity_inlet': {'nFaces': 1888, 'startFace': 88064}}
-    
+        
     inlet  = json_inlet  if json_inlet in boundary else detected_inlet
     outlet = json_outlet if json_outlet in boundary else detected_outlet
     # inlet, outlet = velocity_inlet, pressure_outlet
     
     ''' 
-    "boundary" contains the BC names from the mesh generation process, these names will for sure be used later in the code.
+    The authoritative BC names are the ones assigned in the mesh file: case_dir/constant/polyMesh/boundary
+    "boundary" contains the BC names from this mesh file
+    OpenFOAM never really reads the BC names assigned in JSON file
     If the BC names of the inlet/outlet from the BC_JSON file are contained in "boundary" (i.e. they indeed exists), we keep them. Otherwise, they don't exist and we pick those guessed found in "boundary" (detected_inlet and detected_outlet).
     '''
 
@@ -933,9 +1016,9 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     ''' =============================================================================== '''
     ''' ============================ Post-Processing ================================== '''
     ''' =============================================================================== '''
-    
-    case_name = os.path.basename(case_dir.rstrip("/"))
-    # case_name = fan_i
+    latest = _latest_time_dir(case_dir)
+    if latest is None:
+        raise RuntimeError(f"simpleFoam produced no time directories in {case_dir}. See log.simpleFoam.")
 
     # Converts OpenFOAM results of a case to VTK (.vtu) format using foamToVTK
     vtu_path = convert_to_vtk(case_dir, end_time)
@@ -945,6 +1028,10 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     inlet_pts  = collect_patch_point_ids(case_dir, inlet)
     outlet_pts = collect_patch_point_ids(case_dir, outlet)
     
+    
+    case_name = os.path.basename(case_dir.rstrip("/"))
+    # case_name = fan_i
+    
     # If the user didn't specify a location to put results, it creates: case_dir/results_updf/
     results_dir = results_dir or os.path.join(case_dir, "results_updf")
     pathlib.Path(results_dir).mkdir(parents=True, exist_ok=True)
@@ -952,13 +1039,30 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     
     updf_name = os.path.join(results_dir, f"{case_name}_UPDF_{end_time}.h5")
     write_updf(updf_name, coords, inlet_pts, inlet_vec, outlet_pts, outlet_p, Usol, Psol)
+
     
-    # Plot the residuals
-    plots_dir = os.path.join(case_dir, "plots")
+    
+    
+    # Create (if it doesn't already exists) the "plots/{end_time}" folder to save figures in it
+    plots_dir = os.path.join(case_dir, f"plots/{end_time}")
     pathlib.Path(plots_dir).mkdir(parents=True, exist_ok=True)
     
+    # Plot and save the residuals
     plot_residuals_from_log(case_dir, end_time)
-    plot_mass_flow(case_dir, end_time)
+    plots(case_dir, end_time)
+    
+    # Copy paste the result files and folders into the "configurations_saved" folder
+    shutil.copytree(f"{case_dir}/postProcessing", f"{case_dir}/configurations_saved/{end_time}/postProcessing", dirs_exist_ok=True)
+    shutil.copytree(f"{case_dir}/{end_time}", f"{case_dir}/configurations_saved/{end_time}/{end_time}", dirs_exist_ok=True)
+    shutil.copytree(f"{case_dir}/VTK/{case_name}_{end_time}", f"{case_dir}/configurations_saved/{end_time}/{case_name}_{end_time}", dirs_exist_ok=True)
+    shutil.copy(f"{case_dir}/results_updf/{case_name}_UPDF_{end_time}.h5", f"{case_dir}/configurations_saved/{end_time}")
+    shutil.copy(f"{case_dir}/VTK/{case_name}_{end_time}.vtm", f"{case_dir}/configurations_saved/{end_time}")
+    
+    # Delete files and folders
+    shutil.rmtree(f"{case_dir}/{end_time}")
+    shutil.rmtree(f"{case_dir}/VTK/{case_name}_{end_time}")
+    os.remove(f"{case_dir}/VTK/{case_name}_{end_time}.vtm")
+    os.remove(f"{case_dir}/results_updf/{case_name}_UPDF_{end_time}.h5")
     ''' =============================================================================== '''
 
 
@@ -989,10 +1093,18 @@ def main():
     write_interval = None
     
     for c in cases:
+        
         print(f"=== Case: {c} ===")
         # c = cases/fan_i     \forall i \in {0,...,num_samples_per_class-1}
         
-        # process_case(c, end_time=args.end_time)
+        case_name = os.path.basename(c.rstrip("/"))
+        # case_name = fan_i
+        
+        # Tranfer the new mesh from meshes into cases/fan_i/constant/polyMesh
+        mesh_path = f"../../meshes/{case_name}_fluid.msh"
+        update_openfoam_mesh(mesh_path, c)
+        print("[MESH] Mesh has been transfered")
+        
         process_case(c, end_time=end_time, write_interval=write_interval)
         
         break

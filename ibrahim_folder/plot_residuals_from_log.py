@@ -1,5 +1,7 @@
+import os
 import re
 import matplotlib.pyplot as plt
+import pathlib
 from collections import defaultdict
 
 def plot_residuals_from_log(case_dir, end_time):
@@ -40,5 +42,5 @@ def plot_residuals_from_log(case_dir, end_time):
     plt.title("simpleFoam Residuals")
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"{case_dir}/plots/residuals_{end_time}.pdf")
+    plt.savefig(f"{case_dir}/plots/{end_time}/residuals_{end_time}.pdf")
     plt.show()

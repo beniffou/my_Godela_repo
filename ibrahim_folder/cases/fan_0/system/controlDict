@@ -24,9 +24,11 @@ runTimeModifiable yes;
 
 functions
 {
+    // Mass flow at inlet
     massFlowInlet {
 		type            surfaceFieldValue;
         libs            (fieldFunctionObjects);
+        enabled         true;
         writeControl    timeStep;
         writeInterval   1;
         log             yes;
@@ -37,9 +39,11 @@ functions
         fields          (phi);
 	}
 
+    // Mass flow at outlet
     massFlowOutlet {
 		type            surfaceFieldValue;
         libs            (fieldFunctionObjects);
+        enabled         true;
         writeControl    timeStep;
         writeInterval   1;
         log             yes;
@@ -49,4 +53,19 @@ functions
         operation       sum;
         fields          (phi);
 	}
+
+    // Area-averaged velocity at outlet (gives Ux, Uy, Uz components)
+    outletVelocity {
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            pressure_outlet;
+        operation       areaAverage;
+        fields          (U);
+    }
 }

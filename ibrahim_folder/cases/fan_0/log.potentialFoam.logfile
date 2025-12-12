@@ -8,10 +8,10 @@
 Build  : _f00230df-20250528 OPENFOAM=2412 patch=250528 version=2412
 Arch   : "LSB;label=32;scalar=64"
 Exec   : potentialFoam -case cases/fan_0
-Date   : Dec 06 2025
-Time   : 02:58:40
+Date   : Dec 08 2025
+Time   : 02:00:57
 Host   : LAPTOP-GNN8LC85
-PID    : 4201
+PID    : 10685
 I/O    : uncollated
 Case   : /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder/cases/fan_0
 nProcs : 1
@@ -37,10 +37,10 @@ No MRF models present
 
 
 Calculating potential flow
-GAMG:  Solving for Phi, Initial residual = 1, Final residual = 7.88238e-08, No Iterations 24
-Continuity error = 5.04408e-06
-Interpolated velocity error = 3.301e-12
-ExecutionTime = 0.78 s  ClockTime = 1 s
+GAMG:  Solving for Phi, Initial residual = 1, Final residual = 9.12519e-08, No Iterations 19
+Continuity error = 0.00179111
+Interpolated velocity error = 6.17751e-10
+ExecutionTime = 0.55 s  ClockTime = 1 s
 
 End
 

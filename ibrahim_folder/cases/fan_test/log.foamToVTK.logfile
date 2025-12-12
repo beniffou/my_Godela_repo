@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2412                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _f00230df-20250528 OPENFOAM=2412 patch=250528 version=2412
+Arch   : "LSB;label=32;scalar=64"
+Exec   : foamToVTK -noFunctionObjects -case cases/fan_0 -latestTime
+Date   : Dec 06 2025
+Time   : 21:59:01
+Host   : LAPTOP-GNN8LC85
+PID    : 5340
+I/O    : uncollated
+Case   : /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder/cases/fan_0
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Initial memory 121584 kB
+Create mesh for time = 5
+
+VTK mesh topology: 0.14 s, 126960 kB
+Time: 5
+    volScalar    : k nut omega p
+    volVector    : U
+    Internal  : "VTK/fan_0_5/internal.vtu"
+    Boundary  : "VTK/fan_0_5/boundary/walls.vtp"
+    Boundary  : "VTK/fan_0_5/boundary/pressure_outlet.vtp"
+    Boundary  : "VTK/fan_0_5/boundary/velocity_inlet.vtp"
+Wrote in 0.3 s, 146392 kB
+
+End: 0.44 s, 146392 kB (peak)
+

@@ -1,0 +1,215 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2412                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _f00230df-20250528 OPENFOAM=2412 patch=250528 version=2412
+Arch   : "LSB;label=32;scalar=64"
+Exec   : simpleFoam -case cases/fan_0
+Date   : Dec 06 2025
+Time   : 21:58:58
+Host   : LAPTOP-GNN8LC85
+PID    : 5333
+I/O    : uncollated
+Case   : /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder/cases/fan_0
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 0
+
+
+SIMPLE: convergence criteria
+    field U	 tolerance 1e-05
+    field p	 tolerance 0.0001
+    field k	 tolerance 1e-05
+    field omega	 tolerance 1e-05
+
+Reading field p
+
+Reading field U
+
+Reading/calculating face flux field phi
+
+Selecting incompressible transport model Newtonian
+Selecting turbulence model type RAS
+Selecting RAS turbulence model kOmegaSST
+Selecting patchDistMethod meshWave
+RAS
+{
+    RASModel        kOmegaSST;
+    turbulence      on;
+    printCoeffs     on;
+    alphaK1         0.85;
+    alphaK2         1;
+    alphaOmega1     0.5;
+    alphaOmega2     0.856;
+    gamma1          0.555556;
+    gamma2          0.44;
+    beta1           0.075;
+    beta2           0.0828;
+    betaStar        0.09;
+    a1              0.31;
+    b1              1;
+    c1              10;
+    F3              false;
+    decayControl    false;
+    kInf            0;
+    omegaInf        0;
+}
+
+No MRF models present
+
+No finite volume options present
+
+Starting time loop
+
+surfaceFieldValue massFlowInlet:
+    operation     = sum
+
+
+surfaceFieldValue massFlowOutlet:
+    operation     = sum
+
+
+surfaceFieldValue outletVelocity:
+    operation     = areaAverage
+
+
+Time = 1
+
+smoothSolver:  Solving for Ux, Initial residual = 0.246874, Final residual = 0.006902, No Iterations 2
+smoothSolver:  Solving for Uy, Initial residual = 0.2418, Final residual = 0.00692085, No Iterations 2
+smoothSolver:  Solving for Uz, Initial residual = 0.206802, Final residual = 0.00471628, No Iterations 2
+GAMG:  Solving for p, Initial residual = 1, Final residual = 0.00558186, No Iterations 4
+GAMG:  Solving for p, Initial residual = 0.215539, Final residual = 0.00130436, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0671592, Final residual = 0.000498709, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0294625, Final residual = 0.000207873, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0141846, Final residual = 0.000110136, No Iterations 3
+time step continuity errors : sum local = 0.0315262, global = -0.00344753, cumulative = -0.00344753
+smoothSolver:  Solving for omega, Initial residual = 0.220331, Final residual = 0.0206, No Iterations 4
+smoothSolver:  Solving for k, Initial residual = 1, Final residual = 0.0482469, No Iterations 8
+ExecutionTime = 0.57 s  ClockTime = 1 s
+
+surfaceFieldValue massFlowInlet write:
+    total faces   = 1888
+    total area    = 0.00431436
+
+    sum(velocity_inlet) of phi = -0.00431436
+
+surfaceFieldValue massFlowOutlet write:
+    total faces   = 1888
+    total area    = 0.00431436
+
+    sum(pressure_outlet) of phi = 0.00431413
+
+surfaceFieldValue outletVelocity write:
+    total faces   = 1888
+    total area    = 0.00431436
+
+    areaAverage(pressure_outlet) of U = (-0.0473945 0.0225215 1.0419)
+
+Time = 2
+
+smoothSolver:  Solving for Ux, Initial residual = 0.14548, Final residual = 0.00335299, No Iterations 2
+smoothSolver:  Solving for Uy, Initial residual = 0.147619, Final residual = 0.00339524, No Iterations 2
+smoothSolver:  Solving for Uz, Initial residual = 0.127619, Final residual = 0.00270081, No Iterations 2
+GAMG:  Solving for p, Initial residual = 0.53378, Final residual = 0.00312988, No Iterations 4
+GAMG:  Solving for p, Initial residual = 0.15752, Final residual = 0.000856371, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0479562, Final residual = 0.000366235, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0211158, Final residual = 0.000148975, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0103052, Final residual = 8.33843e-05, No Iterations 3
+time step continuity errors : sum local = 0.0307199, global = -0.00484658, cumulative = -0.0082941
+smoothSolver:  Solving for omega, Initial residual = 0.105283, Final residual = 0.00649386, No Iterations 6
+smoothSolver:  Solving for k, Initial residual = 0.371814, Final residual = 0.0346051, No Iterations 6
+ExecutionTime = 0.79 s  ClockTime = 1 s
+
+surfaceFieldValue massFlowInlet write:
+    sum(velocity_inlet) of phi = -0.00431436
+
+surfaceFieldValue massFlowOutlet write:
+    sum(pressure_outlet) of phi = 0.00431404
+
+surfaceFieldValue outletVelocity write:
+    areaAverage(pressure_outlet) of U = (-0.0454317 0.0204132 1.02881)
+
+Time = 3
+
+smoothSolver:  Solving for Ux, Initial residual = 0.109615, Final residual = 0.00244646, No Iterations 2
+smoothSolver:  Solving for Uy, Initial residual = 0.112235, Final residual = 0.00250173, No Iterations 2
+smoothSolver:  Solving for Uz, Initial residual = 0.104844, Final residual = 0.00225836, No Iterations 2
+GAMG:  Solving for p, Initial residual = 0.320421, Final residual = 0.00183437, No Iterations 4
+GAMG:  Solving for p, Initial residual = 0.104676, Final residual = 0.000604852, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.034619, Final residual = 0.000250993, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0158686, Final residual = 0.000113797, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.00804996, Final residual = 6.17302e-05, No Iterations 3
+time step continuity errors : sum local = 0.0215618, global = -0.00345195, cumulative = -0.0117461
+smoothSolver:  Solving for omega, Initial residual = 0.0497073, Final residual = 0.00367618, No Iterations 4
+smoothSolver:  Solving for k, Initial residual = 0.302478, Final residual = 0.021076, No Iterations 6
+ExecutionTime = 1.09 s  ClockTime = 1 s
+
+surfaceFieldValue massFlowInlet write:
+    sum(velocity_inlet) of phi = -0.00431436
+
+surfaceFieldValue massFlowOutlet write:
+    sum(pressure_outlet) of phi = 0.00431413
+
+surfaceFieldValue outletVelocity write:
+    areaAverage(pressure_outlet) of U = (-0.0435318 0.0193888 1.01396)
+
+Time = 4
+
+smoothSolver:  Solving for Ux, Initial residual = 0.0924205, Final residual = 0.00201706, No Iterations 2
+smoothSolver:  Solving for Uy, Initial residual = 0.0953719, Final residual = 0.00207083, No Iterations 2
+smoothSolver:  Solving for Uz, Initial residual = 0.0968227, Final residual = 0.00201012, No Iterations 2
+GAMG:  Solving for p, Initial residual = 0.252855, Final residual = 0.00105229, No Iterations 4
+GAMG:  Solving for p, Initial residual = 0.088939, Final residual = 0.000547028, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0309919, Final residual = 0.000213509, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0142994, Final residual = 0.00010755, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.00744692, Final residual = 5.54712e-05, No Iterations 3
+time step continuity errors : sum local = 0.0160412, global = 0.000670519, cumulative = -0.0110755
+smoothSolver:  Solving for omega, Initial residual = 0.0266854, Final residual = 0.00154318, No Iterations 4
+smoothSolver:  Solving for k, Initial residual = 0.203965, Final residual = 0.0102916, No Iterations 6
+ExecutionTime = 1.39 s  ClockTime = 2 s
+
+surfaceFieldValue massFlowInlet write:
+    sum(velocity_inlet) of phi = -0.00431436
+
+surfaceFieldValue massFlowOutlet write:
+    sum(pressure_outlet) of phi = 0.00431441
+
+surfaceFieldValue outletVelocity write:
+    areaAverage(pressure_outlet) of U = (-0.0419571 0.0195098 1.00459)
+
+Time = 5
+
+smoothSolver:  Solving for Ux, Initial residual = 0.0800166, Final residual = 0.0016661, No Iterations 2
+smoothSolver:  Solving for Uy, Initial residual = 0.0825986, Final residual = 0.00176243, No Iterations 2
+smoothSolver:  Solving for Uz, Initial residual = 0.0860737, Final residual = 0.00171596, No Iterations 2
+GAMG:  Solving for p, Initial residual = 0.243071, Final residual = 0.00102263, No Iterations 4
+GAMG:  Solving for p, Initial residual = 0.110936, Final residual = 0.00064732, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0380514, Final residual = 0.000270435, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.0175106, Final residual = 0.000126341, No Iterations 3
+GAMG:  Solving for p, Initial residual = 0.00890474, Final residual = 6.96288e-05, No Iterations 3
+time step continuity errors : sum local = 0.0173708, global = 0.00280517, cumulative = -0.00827036
+smoothSolver:  Solving for omega, Initial residual = 0.0183891, Final residual = 0.00133641, No Iterations 4
+smoothSolver:  Solving for k, Initial residual = 0.150589, Final residual = 0.0134242, No Iterations 4
+ExecutionTime = 1.85 s  ClockTime = 2 s
+
+surfaceFieldValue massFlowInlet write:
+    sum(velocity_inlet) of phi = -0.00431436
+
+surfaceFieldValue massFlowOutlet write:
+    sum(pressure_outlet) of phi = 0.00431455
+
+surfaceFieldValue outletVelocity write:
+    areaAverage(pressure_outlet) of U = (-0.0401532 0.0204164 0.998664)
+
+End
+

@@ -8,7 +8,7 @@ FoamFile
 
 dimensions      [0 0 -1 0 0 0 0];
 
-internalField   uniform 5.850650081613136;
+internalField   uniform 6.614637594150044;
 
 boundaryField
 {
@@ -24,7 +24,7 @@ boundaryField
     velocity_inlet
     {
         type            fixedValue;
-        value            uniform 5.850650081613136;
+        value            uniform 6.614637594150044;
     }
     pressure_outlet
     {

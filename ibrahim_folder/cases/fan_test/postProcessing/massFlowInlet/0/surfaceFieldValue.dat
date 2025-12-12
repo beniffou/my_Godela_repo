@@ -1,0 +1,10 @@
+# Region type : patch velocity_inlet
+# Faces       : 1888
+# Area        : 4.314365e-03
+# Scale factor: 1.000000e+00
+# Time        	sum(phi)
+1             	-4.314365e-03
+2             	-4.314365e-03
+3             	-4.314365e-03
+4             	-4.314365e-03
+5             	-4.314365e-03
