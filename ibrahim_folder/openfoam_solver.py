@@ -738,7 +738,7 @@ def get_inlet_outlet_from_json():
     return inlet_patch, outlet_patch, inlet_val, outlet_val
 
 # ---------- BC writers and checks ----------
-'''Write boundary conditions for all fields in the files case_dir/0/U and case_dir/0/p, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure'''
+'''Write boundary conditions for all fields in the files case_dir/0/U, case_dir/0/p and case_dir/0/Phi, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure'''
 def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
     boundary = read_boundary_table(case_dir)
     patch_names = list(boundary.keys())
@@ -994,7 +994,7 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     # Create or overwrite case_dir/system/controlDict with a standardized configuration
     write_control_dict(case_dir, end_time, write_interval, inlet, outlet)
 
-    # Write boundary conditions for all fields in the files case_dir/0/U and case_dir/0/p, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure
+    # Write boundary conditions for all fields in the files case_dir/0/U, case_dir/0/p and case_dir/0/Phi, ensuring that your OpenFOAM simulation has correctly assigned BCs for velocity and pressure
     write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p)
     ''' ============================================================================== '''
 
