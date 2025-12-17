@@ -46,7 +46,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(-1, -1)
 
     # --- Mesh Density Calculation for ~500,000 Elements ---
-    TARGET_ELEMENT_COUNT = 5_000 
+    TARGET_ELEMENT_COUNT = 50_000 
     
     Lx = xmax - xmin
     Ly = ymax - ymin
@@ -119,7 +119,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
             gmsh.model.setPhysicalName(2, pg_walls, "walls")
     except Exception as e:
         print(f"Error creating boundary physical groups: {e}")
-        
+
     # WRITE SURFACE ASSIGNATIONS
     role_map = {
         "velocity_inlet": inlet_tag,
@@ -132,7 +132,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         print(f"Saved surface tags to {tags_path}")
     except Exception as e:
         print(f"Error saving surface tags: {e}")
-    ### ------------------- ###    
+    ### ------------------- ###
 
     ### ----- VOLUMES ----- ###
     
@@ -158,38 +158,51 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     ''' ============ 3D Wall Refinement (Boundary Layer Alternative) ============ '''
 
     first_layer_height = L_target * 0.02
-    num_layers = 5
-    growth_rate = 1.3
 
-    # Calculate total refinement zone thickness
-    total_thickness = first_layer_height * sum(growth_rate**i for i in range(num_layers))
+    SizeMin_coef = 0.09     # default value: 0.1
+    SizeMax_coef = 1.0      # default value: 1.0
+    DistMax_coef = 200      # default value: 100
 
     print(f"\n[BL] Configuring 3D wall refinement...")
     print(f"     First layer: {first_layer_height:.2e} m")
-    print(f"     Refinement zone: {total_thickness:.2e} m")
 
     try:
-        # Distance field from wall surfaces
-        dist_field = gmsh.model.mesh.field.add("Distance")
-        gmsh.model.mesh.field.setNumbers(dist_field, "SurfacesList", wall_tags)
-        gmsh.model.mesh.field.setNumber(dist_field, "Sampling", 100)
-        
-        # Threshold field: fine mesh near walls, coarser away
-        threshold_field = gmsh.model.mesh.field.add("Threshold")
-        gmsh.model.mesh.field.setNumber(threshold_field, "InField", dist_field)
-        gmsh.model.mesh.field.setNumber(threshold_field, "SizeMin", first_layer_height)
-        gmsh.model.mesh.field.setNumber(threshold_field, "SizeMax", total_thickness * 2)
-        gmsh.model.mesh.field.setNumber(threshold_field, "DistMin", 0)
-        gmsh.model.mesh.field.setNumber(threshold_field, "DistMax", total_thickness)
-        gmsh.model.mesh.field.setNumber(threshold_field, "Sigmoid", 1)  # Smooth transition
-        
-        gmsh.model.mesh.field.setAsBackgroundMesh(threshold_field)
-        
+        # --- Disable all automatic sizing ---
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromPoints", 0)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 0)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthMin", 0)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthMax", 1e22)
+
+        # --- Collect wall curves ---
+        wall_curves = []
+        for s in wall_tags:
+            for c in gmsh.model.getBoundary([(2, s)], oriented=False):
+                if c[0] == 1:
+                    wall_curves.append(c[1])
+        wall_curves = list(set(wall_curves))
+
+        # --- Distance field ---
+        dist = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(dist, "CurvesList", wall_curves)
+        gmsh.model.mesh.field.setNumber(dist, "Sampling", 20)
+
+        # --- Threshold field ---
+        th = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(th, "InField", dist)
+        gmsh.model.mesh.field.setNumber(th, "SizeMin", L_target * SizeMin_coef)              # Smallest element size at the wall
+        gmsh.model.mesh.field.setNumber(th, "SizeMax", L_target * SizeMax_coef)              # How quickly the mesh transitions back to coarse size
+        gmsh.model.mesh.field.setNumber(th, "DistMin", 0.0)
+        gmsh.model.mesh.field.setNumber(th, "DistMax", first_layer_height * DistMax_coef)    # How far refinement extends from the wall
+        gmsh.model.mesh.field.setNumber(th, "Sigmoid", 0)
+        gmsh.model.mesh.field.setAsBackgroundMesh(th)
+                
         print(f"[BL] ✓ Wall refinement configured successfully")
         print(f"[BL] Note: Using refined tetrahedra (not prisms)")
         
     except Exception as e:
         print(f"[ERROR] Wall refinement failed: {e}")
+        return
         import traceback
         traceback.print_exc()
 
@@ -204,7 +217,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
         print(f"Error saving geometry file: {e}")
 
     # --- Mesh Quality Fixes: Algorithms and Determinant ---
-    gmsh.option.setNumber("Mesh.Algorithm3D", 10) # HXT is stable for tet meshes
+    gmsh.option.setNumber("Mesh.Algorithm3D", 1) # Delaunay
     gmsh.option.setNumber("Mesh.Algorithm", 6)    # Netgen 2D/1D
     gmsh.option.setNumber("Mesh.QualityType", 1)
     
@@ -261,7 +274,11 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
             "xmin": xmin, "ymin": ymin, "zmin": zmin, 
             "xmax": xmax, "ymax": ymax, "zmax": zmax
         },
-        "num_nodes": num_nodes
+        "num_nodes": num_nodes,
+        "num_elements": num_elements,
+        "SizeMin_coef": SizeMin_coef,
+        "SizeMax_coef": SizeMax_coef,
+        "DistMax_coef": DistMax_coef
     }
     try:
         with open(metadata_path, 'w') as f:
