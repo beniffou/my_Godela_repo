@@ -967,7 +967,7 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     ensure_fvSchemes(case_dir)
     
     # Set linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
-    relax_U = 0.5; relax_p = 0.2; relax_k = 0.5; relax_omega = 0.5
+    relax_U = 0.1; relax_p = 0.1; relax_k = 0.1; relax_omega = 0.1
     write_fvSolution(case_dir, relax_U, relax_p, relax_k, relax_omega)
 
     # Returns the assumed names of the inlet and outlet from the different surface names in the mesh (case_dir/constant/polyMesh/boundary)
@@ -1089,8 +1089,8 @@ def main():
     if not cases:
         raise SystemExit("No cases found")
     
-    end_time = 100
-    write_interval = None
+    end_time = 5_000
+    write_interval = 500
     
     for c in cases:
         
