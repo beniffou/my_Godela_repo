@@ -119,7 +119,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
             gmsh.model.setPhysicalName(2, pg_walls, "walls")
     except Exception as e:
         print(f"Error creating boundary physical groups: {e}")
-    
+
     # WRITE SURFACE ASSIGNATIONS
     role_map = {
         "velocity_inlet": inlet_tag,
@@ -221,7 +221,8 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
             "xmin": xmin, "ymin": ymin, "zmin": zmin, 
             "xmax": xmax, "ymax": ymax, "zmax": zmax
         },
-        "num_nodes": num_nodes
+        "num_nodes": num_nodes,
+        "num_elements": num_elements
     }
     try:
         with open(metadata_path, 'w') as f:
