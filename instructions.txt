@@ -1,0 +1,59 @@
+ssh Godela-dev-server
+
+mkdir Godela-AI
+cd Godela-AI
+mkdir fan_CFD_dataset
+cd fan_CFD_dataset
+git init
+git remote add upstream https://github.com/Godela-AI/fan_CFD_dataset.git
+git pull upstream main
+	Username for 'https://github.com': beniffou
+	Password for 'https://beniffou@github.com': *password*
+
+
+
+My personal branch: origin/main
+	git pull origin main
+Godela GitHub branch: upstream/main
+	git pull upstream main
+
+
+
+Work on this folder: /home/ibrahim/Godela-AI/my_Godela_repo/ibrahim_folder
+
+I work on WSL via the Ubuntu software because PyFoam was designed for Linux, and most users run it inside WSL (Ubuntu on Windows). Otherwise I have syntax problem
+
+I install Python in this new terminal via:
+	sudo apt update
+	sudo apt install python3 python3-pip -y
+
+I go to the directory where I work:
+	cd /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder
+	
+I cannot neither use pip nor pip3 so I have to create a virtual environment via:
+	python3 -m venv .venv
+This will create a folder .venv containing the whole environment (the packages installed on it and so on)
+
+Now I will run my scripts on this environment, meaning that vscode will use the packages installed in this environment instead the standard one	
+I get access to this new environment by typing in the terminal:
+	source .venv/bin/activate
+
+To modify the files related to a specific package, go to C:\Users\Ibrahim\Desktop\Godela-AI\my_Godela_repo\ibrahim_folder\.venv\lib\python3.12\site-packages\*package-name*
+	
+Now I can install all the packages needed (numpy, h5py, meshio, pyfoam, six, etc.) and run my scripts:
+	python3 openfoam_solver.py
+	
+When I finished to use the environment, I leave it by typing: deactivate
+
+Everytime I want to run pyfoam (so no generate the mesh), I have to:
+	- open Ubuntu
+	- go to the working directory: cd /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder
+	- access the virtual environment: source .venv2/bin/activate
+	- run my script, e.g. python3 openfoam_solver.py
+	- deconnect from the environment: deactivate
+
+
+
+OpenFoam is installed in: . /usr/lib/openfoam/openfoam2412/etc/bashrc
+
+To run with residuals plots from ibrahim_folder: pyFoamPlotRunner.py simpleFoam -case cases/fan_0
