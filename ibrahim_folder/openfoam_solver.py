@@ -1089,7 +1089,7 @@ def main():
     if not cases:
         raise SystemExit("No cases found")
     
-    end_time = 5_000
+    end_time = 1_000
     write_interval = 500
     
     for c in cases:
@@ -1104,7 +1104,7 @@ def main():
         mesh_path = f"../../meshes/{case_name}_fluid.msh"
         update_openfoam_mesh(mesh_path, c)
         print("[MESH] Mesh has been transfered")
-        
+                
         process_case(c, end_time=end_time, write_interval=write_interval)
         
         break
