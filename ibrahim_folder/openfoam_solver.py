@@ -1090,7 +1090,7 @@ def main():
         raise SystemExit("No cases found")
     
     end_time = 1_000
-    write_interval = 500
+    write_interval = None
     
     for c in cases:
         
