@@ -161,7 +161,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
 
     SizeMin_coef = 0.09     # default value: 0.1
     SizeMax_coef = 1.0      # default value: 1.0
-    DistMax_coef = 200      # default value: 100
+    DistMax_coef = 100      # default value: 100
 
     print(f"\n[BL] Configuring 3D wall refinement...")
     print(f"     First layer: {first_layer_height:.2e} m")

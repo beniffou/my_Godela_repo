@@ -1,0 +1,18 @@
+{
+    "characteristic_length": 0.01690242243564,
+    "mesh_target_L": 0.001077149004219631,
+    "mesh_num_elements": 285519,
+    "bounding_box": {
+        "xmin": -0.03040144365082,
+        "ymin": -0.03040144365082,
+        "zmin": -1e-07,
+        "xmax": 0.03040144365082,
+        "ymax": 0.03040144365082,
+        "zmax": 0.01690232243564
+    },
+    "num_nodes": 64955,
+    "num_elements": 285519,
+    "SizeMin_coef": 0.09,
+    "SizeMax_coef": 1.0,
+    "DistMax_coef": 100
+}

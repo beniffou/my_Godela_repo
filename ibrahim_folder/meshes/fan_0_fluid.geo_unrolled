@@ -1,15 +1,1 @@
 Merge "meshes/fan_0_fluid.geo_unrolled.xao";
-Field[1] = Distance;
-Field[1].CurvesList = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28};
-Field[1].PointsList = {};
-Field[1].Sampling = 20;
-Field[1].SurfacesList = {};
-Field[2] = Threshold;
-Field[2].DistMax = 0.004308596016878524;
-Field[2].DistMin = 0;
-Field[2].InField = 1;
-Field[2].Sigmoid = 0;
-Field[2].SizeMax = 0.001077149004219631;
-Field[2].SizeMin = 9.694341037976679e-05;
-Field[2].StopAtDistMax = 0;
-Background Field = 2;

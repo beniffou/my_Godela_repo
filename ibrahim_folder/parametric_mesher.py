@@ -46,7 +46,7 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(-1, -1)
 
     # --- Mesh Density Calculation for ~500,000 Elements ---
-    TARGET_ELEMENT_COUNT = 500_000 
+    TARGET_ELEMENT_COUNT = 2_500_000 
     
     Lx = xmax - xmin
     Ly = ymax - ymin
