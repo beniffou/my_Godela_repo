@@ -22,22 +22,22 @@ FoamFile
     {
         type          wall;
         physicalType    wall;
-        nFaces          103760;
-        startFace       1155825;
-    }
-    pressure_outlet
-    {
-        type          patch;
-        physicalType    patch;
-        nFaces          6382;
-        startFace       1259585;
+        nFaces          13710;
+        startFace       574377;
     }
     velocity_inlet
     {
         type          patch;
         physicalType    patch;
-        nFaces          6360;
-        startFace       1265967;
+        nFaces          11400;
+        startFace       588087;
+    }
+    pressure_outlet
+    {
+        type          patch;
+        physicalType    patch;
+        nFaces          11400;
+        startFace       599487;
     }
 )
 

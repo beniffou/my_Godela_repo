@@ -94,8 +94,8 @@ def createGeometryAndMesh(STEP_name, objects_folder, meshes_folder):
     # surface_by_index = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12, 13: 13, 14: 14}
 
     # Define boundary role indices (NOTE: These must match the indices in the Python solver script)
-    inlet_idx = 10
-    outlet_idx = 4
+    inlet_idx = 2
+    outlet_idx = 12
     
     if inlet_idx not in surface_by_index or outlet_idx not in surface_by_index:
         print(f"Requested inlet surface_{inlet_idx} or outlet surface_{outlet_idx} not found")

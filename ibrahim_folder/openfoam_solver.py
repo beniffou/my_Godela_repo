@@ -9,11 +9,10 @@ import os, re, glob, json, pathlib, shutil, argparse, subprocess
 import numpy as np
 import h5py
 import meshio
-from plot_residuals_from_log import plot_residuals_from_log
 from plot_quantities import plots
 
-SURFACE_INLET_INDEX  = 10
-SURFACE_OUTLET_INDEX = 4
+SURFACE_INLET_INDEX  = 2
+SURFACE_OUTLET_INDEX = 12
 CASES_GLOB = "cases/fan_*"
 BC_JSON    = "boundary_conditions/fan_boundary_conditions.json"
 
@@ -211,6 +210,21 @@ functions
         operation       areaAverage;
         fields          (U);
     }}
+    
+    // Area-averaged velocity at inlet (gives Ux, Uy, Uz components)
+    inletVelocity {{
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            {inlet_patch};
+        operation       areaAverage;
+        fields          (U);
+    }}
 }}
 """
     _write_text(path, txt)
@@ -297,7 +311,7 @@ def detect_patch_names(case_dir):
     #    'velocity_inlet': {'nFaces': 1888, 'startFace': 88064}}
     
         
-    # names = list of patch names ('velocity_inlet', 'pressure_outlet')
+    # names = list of patch names ('velocity_inlet', 'pressure_outlet', 'walls')
     names = list(b.keys())
     
     lower = {n.lower(): n for n in names}
@@ -306,7 +320,7 @@ def detect_patch_names(case_dir):
     # If any exact match exists in lowercase, that is chosen
     inlet  = lower.get("velocity_inlet") or lower.get("inlet_velocity") or lower.get("inlet")
     outlet = lower.get("pressure_outlet") or lower.get("outlet_pressure") or lower.get("outlet")
-
+    
     def pick(cands, *subs):
         hits = [n for n in cands if any(s in n.lower() for s in subs)]
         return max(hits, key=len) if hits else None
@@ -797,7 +811,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
         }}
     }}
     """
-    _write_text(path, txt)
+    # _write_text(path, txt)
     # -------------------------------------------------------------------
     
     
@@ -821,7 +835,7 @@ def write_all_field_bcs(case_dir, inlet, outlet, inlet_vec, outlet_p):
         else:
             Ub[p] = {"type": "zeroGradient"}
 
-    U["internalField"] = "uniform (0 0 0)"
+    U["internalField"] = f"uniform ({inlet_vec[0]} {inlet_vec[1]} {inlet_vec[2]})"
     U.writeFile()
 
 
@@ -967,13 +981,13 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     ensure_fvSchemes(case_dir)
     
     # Set linear solvers, relaxation factors, and SIMPLE algorithm parameters in the file case_dir/system/fvSolution
-    relax_U = 0.1; relax_p = 0.1; relax_k = 0.1; relax_omega = 0.1
+    relax_U = 0.9; relax_p = 0.3; relax_k = 0.5; relax_omega = 0.5
     write_fvSolution(case_dir, relax_U, relax_p, relax_k, relax_omega)
 
     # Returns the assumed names of the inlet and outlet from the different surface names in the mesh (case_dir/constant/polyMesh/boundary)
     detected_inlet, detected_outlet = detect_patch_names(case_dir)
     # detected_inlet, detected_outlet = velocity_inlet, pressure_outlet
-    
+        
     # Extracts all BC names and their metadata from case_dir/constant/polyMesh/boundary: number of faces (nFaces) and starting index in the face list (startFace)
     boundary = read_boundary_table(case_dir)
     # boundary = {'walls': {'nFaces': 3584, 'startFace': 82592}, 'pressure_outlet': {'nFaces': 1888, 'startFace': 86176}, 'velocity_inlet': {'nFaces': 1888, 'startFace': 88064}}
@@ -1044,11 +1058,10 @@ def process_case(case_dir, results_dir=None, end_time=2000, write_interval=1000)
     
     
     # Create (if it doesn't already exists) the "plots/{end_time}" folder to save figures in it
-    plots_dir = os.path.join(case_dir, f"plots/{end_time}")
+    plots_dir = os.path.join(case_dir, f"configurations_saved/{end_time}/plots")
     pathlib.Path(plots_dir).mkdir(parents=True, exist_ok=True)
     
     # Plot and save the residuals
-    plot_residuals_from_log(case_dir, end_time)
     plots(case_dir, end_time)
     
     # Copy paste the result files and folders into the "configurations_saved" folder
@@ -1089,7 +1102,7 @@ def main():
     if not cases:
         raise SystemExit("No cases found")
     
-    end_time = 1_000
+    end_time = 3000
     write_interval = None
     
     for c in cases:
@@ -1097,11 +1110,17 @@ def main():
         print(f"=== Case: {c} ===")
         # c = cases/fan_i     \forall i \in {0,...,num_samples_per_class-1}
         
-        case_name = os.path.basename(c.rstrip("/"))
-        # case_name = fan_i
+        case_name = os.path.basename(c.rstrip("/"))     # case_name = fan_i
+        
+        # c = "cases/fan_0_old_mesh"
+        
+        mesh_file_name = "fan_0_fluid_without_BL.msh"
+        # mesh_file_name = "fan_0_fluid_with_BL.msh"
         
         # Tranfer the new mesh from meshes into cases/fan_i/constant/polyMesh
-        mesh_path = f"../../meshes/{case_name}_fluid.msh"
+        # mesh_path = f"../../meshes/{case_name}_fluid.msh"
+        
+        mesh_path = f"../../meshes/{mesh_file_name}"
         update_openfoam_mesh(mesh_path, c)
         print("[MESH] Mesh has been transfered")
                 

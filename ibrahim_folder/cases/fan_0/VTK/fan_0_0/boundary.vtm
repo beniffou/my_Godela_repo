@@ -4,8 +4,8 @@
   <vtkMultiBlockDataSet>
     <Block name='boundary'>
       <DataSet name='walls' file='boundary/walls.vtp' />
-      <DataSet name='pressure_outlet' file='boundary/pressure_outlet.vtp' />
       <DataSet name='velocity_inlet' file='boundary/velocity_inlet.vtp' />
+      <DataSet name='pressure_outlet' file='boundary/pressure_outlet.vtp' />
     </Block>
   </vtkMultiBlockDataSet>
   <FieldData>

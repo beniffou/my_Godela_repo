@@ -10,10 +10,10 @@ application     simpleFoam;
 startFrom       startTime;
 startTime       0;
 stopAt          endTime;
-endTime         1000;
+endTime         3000;
 deltaT          1;
 writeControl    timeStep;
-writeInterval   500;
+writeInterval   3000;
 purgeWrite      0;
 writeFormat     ascii;
 writePrecision  6;
@@ -65,6 +65,21 @@ functions
         writeFields     false;
         regionType      patch;
         name            pressure_outlet;
+        operation       areaAverage;
+        fields          (U);
+    }
+    
+    // Area-averaged velocity at inlet (gives Ux, Uy, Uz components)
+    inletVelocity {
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            velocity_inlet;
         operation       areaAverage;
         fields          (U);
     }

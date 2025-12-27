@@ -1,0 +1,52 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2412                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    arch        "LSB;label=32;scalar=64";
+    class       dictionary;
+    location    "1000/uniform/functionObjects";
+    object      functionObjectProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+cdf7e925f5746741c316f5fbcf39ad0dfca90775
+{
+    massFlowInlet
+    {
+        scalar
+        {
+            sum(velocity_inlet,phi) -3.696966782901554e-06;
+        }
+    }
+    massFlowOutlet
+    {
+        scalar
+        {
+            sum(pressure_outlet,phi) 3.696978771230175e-06;
+        }
+    }
+    outletVelocity
+    {
+        vector
+        {
+            areaAverage(pressure_outlet,U) ( -1.59187e-05 -0.000353291 0.00100049 );
+        }
+    }
+    inletVelocity
+    {
+        vector
+        {
+            areaAverage(velocity_inlet,U) ( 0 0 0.001 );
+        }
+    }
+}
+
+
+// ************************************************************************* //

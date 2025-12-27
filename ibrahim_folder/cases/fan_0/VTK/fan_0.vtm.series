@@ -1,7 +1,6 @@
 {
   "file-series-version" : "1.0",
   "files" : [
-    { "name" : "fan_0_0.vtm", "time" : 0 },
-    { "name" : "fan_0_4500.vtm", "time" : 4500 }
+    { "name" : "fan_0_0.vtm", "time" : 0 }
   ]
 }

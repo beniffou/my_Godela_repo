@@ -8,10 +8,10 @@
 Build  : _f00230df-20250528 OPENFOAM=2412 patch=250528 version=2412
 Arch   : "LSB;label=32;scalar=64"
 Exec   : foamToVTK -noFunctionObjects -case cases/fan_0 -latestTime
-Date   : Dec 21 2025
-Time   : 21:40:31
+Date   : Dec 27 2025
+Time   : 14:02:20
 Host   : LAPTOP-GNN8LC85
-PID    : 4208
+PID    : 60211
 I/O    : uncollated
 Case   : /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder/cases/fan_0
 nProcs : 1
@@ -22,18 +22,18 @@ allowSystemOperations : Allowing user-supplied system call operations
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 Create time
 
-Initial memory 121580 kB
-Create mesh for time = 4500
+Initial memory 121588 kB
+Create mesh for time = 0
 
-VTK mesh topology: 3.39 s, 196300 kB
-Time: 4500
+VTK mesh topology: 0.83 s, 157420 kB
+Time: 0
     volScalar    : k nut omega p
     volVector    : U
-    Internal  : "VTK/fan_0_4500/internal.vtu"
-    Boundary  : "VTK/fan_0_4500/boundary/walls.vtp"
-    Boundary  : "VTK/fan_0_4500/boundary/pressure_outlet.vtp"
-    Boundary  : "VTK/fan_0_4500/boundary/velocity_inlet.vtp"
-Wrote in 7.2 s, 474060 kB
+    Internal  : "VTK/fan_0_0/internal.vtu"
+    Boundary  : "VTK/fan_0_0/boundary/walls.vtp"
+    Boundary  : "VTK/fan_0_0/boundary/velocity_inlet.vtp"
+    Boundary  : "VTK/fan_0_0/boundary/pressure_outlet.vtp"
+Wrote in 1.39 s, 284656 kB
 
-End: 10.59 s, 474060 kB (peak)
+End: 2.22 s, 284656 kB (peak)
 

@@ -1,10 +1,3 @@
-/*--------------------------------*- C++ -*----------------------------------*\
-| =========                 |                                                 |
-| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  v2506                                 |
-|   \\  /    A nd           | Website:  www.openfoam.com                      |
-|    \\/     M anipulation  |                                                 |
-\*---------------------------------------------------------------------------*/
 FoamFile
 {
     version     2.0;
@@ -12,42 +5,67 @@ FoamFile
     class       dictionary;
     object      controlDict;
 }
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 application     simpleFoam;
-
 startFrom       startTime;
-
 startTime       0;
-
 stopAt          endTime;
-
-endTime         2000;
-
+endTime         100;
 deltaT          1;
-
 writeControl    timeStep;
-
 writeInterval   100;
-
 purgeWrite      0;
-
 writeFormat     ascii;
-
 writePrecision  6;
-
 writeCompression off;
-
 timeFormat      general;
-
 timePrecision   6;
-
-runTimeModifiable true;
+runTimeModifiable yes;
 
 functions
 {
-    #includeFunc streamlines
+    // Mass flow at inlet
+    massFlowInlet {
+		type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            velocity_inlet;
+        operation       sum;
+        fields          (phi);
+	}
+
+    // Mass flow at outlet
+    massFlowOutlet {
+		type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            pressure_outlet;
+        operation       sum;
+        fields          (phi);
+	}
+
+    // Area-averaged velocity at outlet (gives Ux, Uy, Uz components)
+    outletVelocity {
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+        enabled         true;
+        writeControl    timeStep;
+        writeInterval   1;
+        log             yes;
+        writeFields     false;
+        regionType      patch;
+        name            pressure_outlet;
+        operation       areaAverage;
+        fields          (U);
+    }
 }
-
-
-// ************************************************************************* //

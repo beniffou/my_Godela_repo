@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------*\
 | =========                 |                                                 |
 | \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
-|  \\    /   O peration     | Version:  2506                                  |
+|  \\    /   O peration     | Version:  2412                                  |
 |   \\  /    A nd           | Website:  www.openfoam.com                      |
 |    \\/     M anipulation  |                                                 |
 \*---------------------------------------------------------------------------*/
-Build  : _615aae61-20250627 OPENFOAM=2506 version=2506
+Build  : _f00230df-20250528 OPENFOAM=2412 patch=250528 version=2412
 Arch   : "LSB;label=32;scalar=64"
-Exec   : potentialFoam -case /home/ubuntu/fan_CFD_dataset/cases/fan_1
-Date   : Nov 07 2025
-Time   : 14:38:32
-Host   : ip-172-31-37-87
-PID    : 167640
+Exec   : potentialFoam -case cases/fan_1
+Date   : Dec 24 2025
+Time   : 15:25:24
+Host   : LAPTOP-GNN8LC85
+PID    : 11562
 I/O    : uncollated
-Case   : /home/ubuntu/fan_CFD_dataset/cases/fan_1
+Case   : /mnt/c/Users/Ibrahim/Desktop/Godela-AI/my_Godela_repo/ibrahim_folder/cases/fan_1
 nProcs : 1
 trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
 fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
@@ -37,16 +37,10 @@ No MRF models present
 
 
 Calculating potential flow
+GAMG:  Solving for Phi, Initial residual = 1, Final residual = 5.52296e-08, No Iterations 23
+Continuity error = 5.62195e-06
+Interpolated velocity error = 8.46274e-12
+ExecutionTime = 0.57 s  ClockTime = 1 s
 
-
---> FOAM FATAL IO ERROR: (openfoam-2506)
-Entry 'Phi' not found in dictionary "system/fvSolution/solvers"
-
-
-file: system/fvSolution/solvers at line 13 to 27.
-
-    From const Foam::dictionary& Foam::dictionary::subDict(const Foam::word&, Foam::keyType::option) const
-    in file db/dictionary/dictionary.C at line 457.
-
-FOAM exiting
+End
 
